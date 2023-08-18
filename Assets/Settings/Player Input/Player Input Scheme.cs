@@ -129,7 +129,7 @@ public partial class @PlayerInputScheme : IInputActionCollection2, IDisposable
                     ""id"": ""1aa9541e-ba8f-4ace-a284-1ef056297d79"",
                     ""path"": ""<Gamepad>/rightStick"",
                     ""interactions"": """",
-                    ""processors"": """",
+                    ""processors"": ""StickDeadzone"",
                     ""groups"": """",
                     ""action"": ""Rotation"",
                     ""isComposite"": false,
@@ -193,7 +193,7 @@ public partial class @PlayerInputScheme : IInputActionCollection2, IDisposable
                 {
                     ""name"": """",
                     ""id"": ""2337db0c-0dd0-4873-9380-add29ac6e9ba"",
-                    ""path"": ""<Gamepad>/buttonEast"",
+                    ""path"": ""<Gamepad>/leftTrigger"",
                     ""interactions"": """",
                     ""processors"": """",
                     ""groups"": """",
@@ -237,7 +237,7 @@ public partial class @PlayerInputScheme : IInputActionCollection2, IDisposable
                 {
                     ""name"": """",
                     ""id"": ""26e6dbe3-26e9-4358-af33-4736a46c7ad1"",
-                    ""path"": ""<Gamepad>/buttonSouth"",
+                    ""path"": ""<Gamepad>/rightTrigger"",
                     ""interactions"": """",
                     ""processors"": """",
                     ""groups"": """",
@@ -259,7 +259,7 @@ public partial class @PlayerInputScheme : IInputActionCollection2, IDisposable
                 {
                     ""name"": """",
                     ""id"": ""8b856655-3a6e-480d-881c-6c2c7cfc8d3f"",
-                    ""path"": ""<Gamepad>/buttonNorth"",
+                    ""path"": ""<Gamepad>/leftShoulder"",
                     ""interactions"": """",
                     ""processors"": """",
                     ""groups"": """",
