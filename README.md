@@ -1,2 +1,2 @@
-# CageBrawlers
-My repository for Cage Brawlers Unity3D project.
+# Cage Brawlers
+Repository for Cage Brawlers Unity3D project.
