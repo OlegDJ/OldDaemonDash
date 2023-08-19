@@ -141,7 +141,7 @@ public class PlayerController : MonoBehaviour
         moveSpeed = walkSpeed;
     }
 
-    private void FixedUpdate() { Movement(); GroundCheck(); Rotation(); }
+    private void FixedUpdate() { Movement(); GroundCheck(); }
 
     private void Update()
     {
@@ -154,6 +154,7 @@ public class PlayerController : MonoBehaviour
         energyBar.value = energy;
 
         SmoothMoveInput();
+        Rotation();
         DashUpdate();
         FocusUpdate();
         Animation();
@@ -225,6 +226,8 @@ public class PlayerController : MonoBehaviour
     {
         moveDirection = mainCamera.right * curInputVector.x + mainCamera.forward * curInputVector.y;
         moveDirection.y = 0f;
+
+        //Vector3.ProjectOnPlane();
 
         targetVelocity = moveDirection * moveSpeed;
         if (!isDashing) targetVelocity.y = rb.velocity.y;

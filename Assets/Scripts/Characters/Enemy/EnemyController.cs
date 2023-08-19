@@ -3,33 +3,35 @@ using UnityEngine;
 using UnityEngine.AI;
 using Random = UnityEngine.Random;
 
-[RequireComponent(typeof(NavMeshAgent))]
 public class EnemyController : MonoBehaviour
 {
     #region Health
     [Header("Health")]
     [SerializeField] private int maxHealth = 100;
-    private int health;
+    [HideInInspector] public int health;
+    #endregion
+
+    #region Check Player In Ranges
+    [Header("Check Player In Ranges")]
+    [SerializeField] private float sightRange = 25f;
+    [SerializeField] private float attackRange = 1.5f;
+    [SerializeField, Range(0f, 360f)] private float viewAngle = 160f;
+    public Vector3 offsetFromObjectCenter = new Vector3(0f, 1f, 0f);
+    private Vector3 directionToPlayer;
+    private float distanceToPlayer;
+    [HideInInspector] public bool playerInSightRange, playerInAttackRange;
+    [HideInInspector] public Vector3 modifiedPlayerPosition, modifiedPosition;
+    private Vector3 destinationPosition;
     #endregion
 
     #region AI Behavior
     [Header("AI Behavior")]
-    [SerializeField] private float sightRange = 25f;
-    [SerializeField] private float attackRange = 1.5f;
-    [SerializeField, Range(0f, 360f)] private float viewAngle = 160f;
-    [SerializeField] private Vector3 offsetFromObjectCenter = new Vector3(0f, 1f, 0f);
-    [SerializeField] private float minPatrolRange = 5f, maxPatrolRange = 10f;
-    [SerializeField] private float minDistanceToStop = 1f;
-    [SerializeField, Range(0f, 0.1f)] private float minVelocityToStop = 0.1f;
-    [SerializeField, Range(0.1f, 1f)] private float destinationUpdateDelay = 0.4f;
-    [SerializeField] private float minTimeIdle = 10f, maxTimeIdle = 20f;
-    private Vector3 modifiedPlayerPosition, modifiedPosition, destinationPosition;
-    private Vector3 directionToPlayer;
-    private float distanceToPlayer;
-    private bool playerInSightRange, playerInAttackRange;
-    private EnemyState curState;
-    private bool inIdleState, patrolPointSet;
-    private float movePower, desirableMovePower;
+    [SerializeField] private float updateDestinationDelay = 0.2f;
+    public float minTimeIdle = 10f, maxTimeIdle = 20f;
+    public float minPatrolRange = 5f, maxPatrolRange = 10f;
+    public float minDistanceToStop = 1f;
+    private float movePower;
+    private float desirableMovePower;
     #endregion
 
     #region Movement
@@ -65,8 +67,8 @@ public class EnemyController : MonoBehaviour
     [Header("Stuff")]
     [SerializeField, Tooltip("" +
         "Offset from object's center where pop-up text spawns." +
-        "")] private Vector3 popUpTextOffset = new Vector3(0f, 1.25f, 0f);
-    [SerializeField] private float animationTransitionDuration = 0.2f;
+        "")]
+    private Vector3 popUpTextOffset = new Vector3(0f, 1.25f, 0f);
     #endregion
 
     #region References
@@ -92,11 +94,9 @@ public class EnemyController : MonoBehaviour
     private void Start()
     {
         health = maxHealth;
-
+        
         destinationPosition = transform.position + offsetFromObjectCenter;
-        curState = EnemyState.Idle;
-
-        StartCoroutine(AIRoutine());
+        StartCoroutine(UpdateDestinationForAgentRoutine());
     }
 
     private void Update()
@@ -106,7 +106,6 @@ public class EnemyController : MonoBehaviour
         modifiedPlayerPosition = player.transform.position + offsetFromObjectCenter;
         modifiedPosition = transform.position + offsetFromObjectCenter;
 
-        AIBehavior();
         AttackUpdate();
         Rotation();
         Animation();
@@ -136,6 +135,15 @@ public class EnemyController : MonoBehaviour
         Destroy(gameObject);
     }
 
+    private IEnumerator UpdateDestinationForAgentRoutine()
+    {
+        while (true)
+        {
+            if (navMeshAgent != null) navMeshAgent.SetDestination(destinationPosition);
+            yield return new WaitForSeconds(updateDestinationDelay);
+        }
+    }
+
     private void CheckPlayerInRanges()
     {
         if (player != null)
@@ -158,70 +166,6 @@ public class EnemyController : MonoBehaviour
         }
         else { playerInSightRange = false; playerInAttackRange = false; }
     }
-
-    #region AI Behavior
-    private IEnumerator AIRoutine()
-    {
-        while (true)
-        {
-            navMeshAgent.SetDestination(destinationPosition);
-            yield return new WaitForSeconds(destinationUpdateDelay);
-        }
-    }
-
-    private void AIBehavior()
-    {
-        if (!playerInSightRange)
-        {
-            if (curState == EnemyState.Patrol) PatrolState();
-            else if (curState == EnemyState.Idle && !inIdleState) StartCoroutine(IdleState());
-        }
-    }
-
-    private IEnumerator IdleState()
-    {
-        inIdleState = true;
-        desirableMovePower = 0f;
-        Debug.Log("Idle State.");
-        yield return new WaitForSeconds(Random.Range(minTimeIdle, maxTimeIdle));
-        curState = EnemyState.Patrol;
-        inIdleState = false;
-    }
-    
-    private void PatrolState()
-    {
-        if (!patrolPointSet)
-        {
-            Vector3 patrolPointPosition = GetPatrolPointPosition();
-
-            NavMeshHit myNavHit;
-            if (NavMesh.SamplePosition(patrolPointPosition, out myNavHit, maxPatrolRange, -1))
-            {
-                patrolPointPosition = myNavHit.position;
-                patrolPointPosition = new Vector3(patrolPointPosition.x, patrolPointPosition.y + offsetFromObjectCenter.y, patrolPointPosition.z);
-
-                patrolPointSet = true;
-                desirableMovePower = 0.5f;
-                destinationPosition = patrolPointPosition;
-            }
-        }
-
-        if (patrolPointSet)
-        {
-            if (Vector3.Distance(modifiedPosition, destinationPosition) <= minDistanceToStop || navMeshAgent.velocity.magnitude <= minVelocityToStop)
-            {
-                patrolPointSet = false;
-                curState = EnemyState.Idle;
-            }
-        }
-    }
-
-    private Vector3 GetPatrolPointPosition()
-    {
-        Vector3 randomDirection = new Vector3(Random.Range(-1f, 1f), 0f, Random.Range(-1f, 1f)).normalized;
-        return modifiedPosition + randomDirection * Random.Range(minPatrolRange, maxPatrolRange);
-    }
-    #endregion
 
     private void Rotation()
     {
@@ -249,17 +193,6 @@ public class EnemyController : MonoBehaviour
         else isAttacking = false;
     }
 
-    public void StartImmediateAttack()
-    {
-        if (!isAttacking)
-        {
-            isAttacking = true;
-            StartCoroutine(AttackCycle());
-        }
-    }
-
-    public void StopImmediateAttack() { isAttacking = false; }
-
     private IEnumerator AttackCycle()
     {
         while (isAttacking)
@@ -278,8 +211,20 @@ public class EnemyController : MonoBehaviour
 
     private void Animation()
     {
-        if(movePower != desirableMovePower) movePower = Mathf.MoveTowards(movePower, desirableMovePower, animationTransitionDuration);
+        if (movePower != desirableMovePower) movePower = Mathf.MoveTowards(movePower, desirableMovePower, Time.deltaTime);
         anim.SetFloat("Move Power", Mathf.Clamp01(movePower));
         anim.SetBool("Is Blocking", isBlocking);
     }
+
+    public void SetDestinationPosition(Vector3 desirableDestinationPosition) { destinationPosition = desirableDestinationPosition; }
+
+    public void SetNavMeshAgentSpeed(bool isWalkSpeed)
+    {
+        if (isWalkSpeed) navMeshAgent.speed = walkSpeed;
+        else navMeshAgent.speed = runSpeed;
+    }
+
+    public void MakeOneAttack() { anim.SetTrigger("Attack"); }
+
+    public void SetMovePower(float desirableValue) { desirableMovePower = desirableValue; }
 }
