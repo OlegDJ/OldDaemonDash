@@ -2,7 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class AdditionalCamera : MonoBehaviour
+public class AdditionalCameraController : MonoBehaviour
 {
     private GameObject mainCamera;
 
@@ -11,7 +11,7 @@ public class AdditionalCamera : MonoBehaviour
         mainCamera = Camera.main.gameObject;
     }
 
-    private void Update()
+    private void LateUpdate()
     {
         transform.position = mainCamera.transform.position;
         transform.rotation = mainCamera.transform.rotation;

@@ -7,10 +7,7 @@ public class DestroyWithTime : MonoBehaviour
     [SerializeField] private float timeDelay = 60f;
     private float time;
 
-    private void Start()
-    {
-        time = timeDelay;
-    }
+    private void Start() { time = timeDelay; }
 
     private void Update()
     {

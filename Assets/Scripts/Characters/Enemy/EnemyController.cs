@@ -3,6 +3,7 @@ using UnityEngine;
 using UnityEngine.AI;
 using Random = UnityEngine.Random;
 
+[RequireComponent(typeof(EnemyAIBehavior))]
 public class EnemyController : MonoBehaviour
 {
     #region Health
@@ -15,10 +16,11 @@ public class EnemyController : MonoBehaviour
     [Header("Check Player In Ranges")]
     [SerializeField] private float sightRange = 25f;
     [SerializeField] private float attackRange = 1.5f;
-    [SerializeField, Range(0f, 360f)] private float viewAngle = 160f;
+    [HideInInspector] public bool fullVision;
+    [SerializeField, Range(0f, 360f)] private float viewAngle = 190f;
     public Vector3 offsetFromObjectCenter = new Vector3(0f, 1f, 0f);
+    [HideInInspector] public float distanceToPlayer;
     private Vector3 directionToPlayer;
-    private float distanceToPlayer;
     [HideInInspector] public bool playerInSightRange, playerInAttackRange;
     [HideInInspector] public Vector3 modifiedPlayerPosition, modifiedPosition;
     private Vector3 destinationPosition;
@@ -27,17 +29,37 @@ public class EnemyController : MonoBehaviour
     #region AI Behavior
     [Header("AI Behavior")]
     [SerializeField] private float updateDestinationDelay = 0.2f;
-    public float minTimeIdle = 10f, maxTimeIdle = 20f;
-    public float minPatrolRange = 5f, maxPatrolRange = 10f;
-    public float minDistanceToStop = 1f;
-    private float movePower;
-    private float desirableMovePower;
+    private bool updateDestination;
+    private float movePower, desirableMovePower;
+    public float minDistance = 0.2f;
+
+    [Space(7.5f)] // Idle State
+    public float minTimeIdle = 5f;
+    public float maxTimeIdle = 10f;
+
+    [Space(7.5f)] // Patrol State
+    public float minPatrolRange = 5f;
+    public float maxPatrolRange = 10f;
+    public float minVelocityToStop = 0.01f;
+
+    [Space(7.5f)] // Battle State
+    [SerializeField] private float minBattleRadius = 4f;
+    [SerializeField] private float maxBattleRadius = 7f;
+    [HideInInspector] public float battleRadius, maxDistanceFromPlayer = 15f;
+    public float minTimeBetweenActions = 3f, maxTimeBetweenActions = 6f;
+    [Range(0f, 1f)] public float actionChance = 0.6f;
+
+    [Space(7.5f)] // Change Position State
+    public float pointMoveSpeed = 0.5f;
+
+    [Space(7.5f)] // Attack State
+    public float minDistanceToAttack = 2.5f;
     #endregion
 
     #region Movement
     [Header("Movement")]
-    [SerializeField] private float walkSpeed;
-    [SerializeField] private float runSpeed;
+    public float walkSpeed = 2f;
+    public float runSpeed = 4f;
     #endregion
 
     #region Rotation
@@ -49,18 +71,16 @@ public class EnemyController : MonoBehaviour
 
     #region Attack
     [Header("Attack")]
-    [SerializeField] private float minTimeBetweenAttacks = 0.5f;
-    [SerializeField] private float maxTimeBetweenAttacks = 5f;
-    private bool isAttacking;
+    [SerializeField] private float minTimeBetweenAttacks = 3f, maxTimeBetweenAttacks = 5f;
+    public bool canAttack;
     #endregion
 
     #region Block
     [Header("Block")]
     [SerializeField] private float minTimeBlock = 2f;
     [SerializeField] private float maxTimeBlock = 5f;
-    [SerializeField, Range(0f, 1f)] private float blockChance = 0.75f;
+    [SerializeField, Range(0f, 1f)] private float blockChance = 0.6f;
     private bool isBlocking;
-    private bool blockedSuccessfully;
     #endregion
 
     #region Stuff
@@ -69,16 +89,16 @@ public class EnemyController : MonoBehaviour
         "Offset from object's center where pop-up text spawns." +
         "")]
     private Vector3 popUpTextOffset = new Vector3(0f, 1.25f, 0f);
+    [SerializeField] private float animationSpeed = 0.1f;
     #endregion
 
     #region References
     [Header("References")]
     [SerializeField] private GameObject ragdollPrefab;
-    [SerializeField] private LayerMask playerLayerMask;
-    [SerializeField] private LayerMask obstacleLayerMask;
-    private NavMeshAgent navMeshAgent;
+    [SerializeField] private LayerMask playerLayerMask, obstacleLayerMask;
+    [HideInInspector] public NavMeshAgent navMeshAgent;
     private GameObject player;
-    private Animator anim;
+    [HideInInspector] public Animator anim;
     private PopUpTextManager popUpTextManager;
     #endregion
 
@@ -94,9 +114,13 @@ public class EnemyController : MonoBehaviour
     private void Start()
     {
         health = maxHealth;
-        
+
+        UpdateBattleRadius();
+
         destinationPosition = transform.position + offsetFromObjectCenter;
         StartCoroutine(UpdateDestinationForAgentRoutine());
+
+        StartCoroutine(AttackRoutine());
     }
 
     private void Update()
@@ -106,11 +130,8 @@ public class EnemyController : MonoBehaviour
         modifiedPlayerPosition = player.transform.position + offsetFromObjectCenter;
         modifiedPosition = transform.position + offsetFromObjectCenter;
 
-        AttackUpdate();
         Rotation();
         Animation();
-
-        Debug.DrawLine(modifiedPosition, destinationPosition, Color.blue);
     }
 
     private void FixedUpdate() { CheckPlayerInRanges(); }
@@ -118,7 +139,7 @@ public class EnemyController : MonoBehaviour
     public void TakeDamage(int damage, bool willDodge)
     {
         anim.SetTrigger("Hit");
-        if (!isBlocking || isBlocking && !willDodge && !blockedSuccessfully)
+        if (!isBlocking || isBlocking && !willDodge)
         {
             health -= damage;
             popUpTextManager.DisplayDamagePopUpText(damage, transform.position + popUpTextOffset);
@@ -131,7 +152,6 @@ public class EnemyController : MonoBehaviour
     {
         Instantiate(ragdollPrefab, transform.position, transform.rotation, transform.parent);
         popUpTextManager.DisplayDeathPopUpText(transform.position + popUpTextOffset);
-        player.GetComponent<PlayerController>().DeleteFromFocusTargets(transform);
         Destroy(gameObject);
     }
 
@@ -139,7 +159,7 @@ public class EnemyController : MonoBehaviour
     {
         while (true)
         {
-            if (navMeshAgent != null) navMeshAgent.SetDestination(destinationPosition);
+            if (navMeshAgent != null && updateDestination) navMeshAgent.SetDestination(destinationPosition);
             yield return new WaitForSeconds(updateDestinationDelay);
         }
     }
@@ -148,11 +168,24 @@ public class EnemyController : MonoBehaviour
     {
         if (player != null)
         {
+            distanceToPlayer = Vector3.Distance(modifiedPosition, modifiedPlayerPosition);
             directionToPlayer = (modifiedPlayerPosition - modifiedPosition).normalized;
-            if (Vector3.Angle(transform.forward, directionToPlayer) < viewAngle / 2)
+
+            if (!Physics.Raycast(modifiedPosition, directionToPlayer, distanceToPlayer, obstacleLayerMask))
             {
-                distanceToPlayer = Vector3.Distance(modifiedPosition, modifiedPlayerPosition);
-                if (!Physics.Raycast(modifiedPosition, directionToPlayer, distanceToPlayer, obstacleLayerMask))
+                if (!fullVision)
+                {
+                    if (Vector3.Angle(transform.forward, directionToPlayer) < viewAngle / 2)
+                    {
+                        if (distanceToPlayer <= sightRange) playerInSightRange = true;
+                        else playerInSightRange = false;
+
+                        if (distanceToPlayer <= attackRange) playerInAttackRange = true;
+                        else playerInAttackRange = false;
+                    }
+                    else { playerInSightRange = false; playerInAttackRange = false; }
+                }
+                else
                 {
                     if (distanceToPlayer <= sightRange) playerInSightRange = true;
                     else playerInSightRange = false;
@@ -160,7 +193,6 @@ public class EnemyController : MonoBehaviour
                     if (distanceToPlayer <= attackRange) playerInAttackRange = true;
                     else playerInAttackRange = false;
                 }
-                else { playerInSightRange = false; playerInAttackRange = false; }
             }
             else { playerInSightRange = false; playerInAttackRange = false; }
         }
@@ -171,6 +203,8 @@ public class EnemyController : MonoBehaviour
     {
         if (playerInSightRange)
         {
+            navMeshAgent.updateRotation = false;
+
             lookPos = modifiedPlayerPosition - modifiedPosition;
             lookPos.y = modifiedPosition.y;
 
@@ -178,26 +212,14 @@ public class EnemyController : MonoBehaviour
 
             transform.rotation = Quaternion.Slerp(transform.rotation, desiredRotation, rotationSpeed);
         }
+        else navMeshAgent.updateRotation = true;
     }
 
-    private void AttackUpdate()
+    private IEnumerator AttackRoutine()
     {
-        if (playerInAttackRange)
+        while (true)
         {
-            if (!isAttacking)
-            {
-                isAttacking = true;
-                StartCoroutine(AttackCycle());
-            }
-        }
-        else isAttacking = false;
-    }
-
-    private IEnumerator AttackCycle()
-    {
-        while (isAttacking)
-        {
-            anim.SetTrigger("Attack");
+            if (playerInAttackRange && canAttack) MakeOneAttack();
             yield return new WaitForSeconds(Random.Range(minTimeBetweenAttacks, maxTimeBetweenAttacks));
         }
     }
@@ -205,26 +227,52 @@ public class EnemyController : MonoBehaviour
     private IEnumerator BlockCycle()
     {
         isBlocking = true;
+        navMeshAgent.isStopped = true;
         yield return new WaitForSeconds(Random.Range(minTimeBlock, maxTimeBlock));
+        navMeshAgent.isStopped = false;
         isBlocking = false;
     }
 
     private void Animation()
     {
-        if (movePower != desirableMovePower) movePower = Mathf.MoveTowards(movePower, desirableMovePower, Time.deltaTime);
+        if (navMeshAgent.velocity.magnitude > 0f)
+        {
+            if (navMeshAgent.speed == walkSpeed) desirableMovePower = 0.5f;
+            else desirableMovePower = 1f;
+        }
+        else desirableMovePower = 0f;
+        if (movePower != desirableMovePower) movePower = Mathf.MoveTowards(movePower, desirableMovePower, animationSpeed);
         anim.SetFloat("Move Power", Mathf.Clamp01(movePower));
+
         anim.SetBool("Is Blocking", isBlocking);
     }
 
-    public void SetDestinationPosition(Vector3 desirableDestinationPosition) { destinationPosition = desirableDestinationPosition; }
-
-    public void SetNavMeshAgentSpeed(bool isWalkSpeed)
+    public void SetNavMeshAgent(Vector3 desirableDestinationPosition,
+        float desirableSpeed, bool shouldUpdateDestination)
     {
-        if (isWalkSpeed) navMeshAgent.speed = walkSpeed;
-        else navMeshAgent.speed = runSpeed;
+        destinationPosition = desirableDestinationPosition;
+        navMeshAgent.speed = desirableSpeed;
+        updateDestination = shouldUpdateDestination;
+
+        if (navMeshAgent != null && !updateDestination) navMeshAgent.SetDestination(destinationPosition);
+    }
+
+    public void UpdateBattleRadius()
+    {
+        battleRadius = Mathf.Round(Random.Range(minBattleRadius, maxBattleRadius) * 10f) * 0.1f;
+    }
+
+    public Vector3 GetConnectedDirection()
+    {
+        Vector3 heading = modifiedPosition - modifiedPlayerPosition;
+        return (heading / heading.magnitude).normalized;
+    }
+
+    public Vector3 GetRandomDirection()
+    {
+        Vector2 rawDirection = Random.insideUnitCircle.normalized;
+        return new Vector3(rawDirection.x, 0f, rawDirection.y);
     }
 
     public void MakeOneAttack() { anim.SetTrigger("Attack"); }
-
-    public void SetMovePower(float desirableValue) { desirableMovePower = desirableValue; }
 }

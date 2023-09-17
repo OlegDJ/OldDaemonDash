@@ -4,7 +4,9 @@ using UnityEngine;
 
 public abstract class StateMachine : MonoBehaviour
 {
-    [SerializeField] private State curState;
+    [SerializeField] private string curStateName;
+
+    public State curState;
 
     private void Start()
     {
@@ -21,12 +23,9 @@ public abstract class StateMachine : MonoBehaviour
         curState.OnStateExit();
 
         curState = newState;
-        curState.OnStateEnter();
-    }
 
-    private void OnGUI()
-    {
-        string content = curState != null ? curState.name : "No Current State";
-        GUILayout.Label($"<color='black'><size=40>{content}</size></color>");
+        curStateName = curState.name;
+
+        curState.OnStateEnter();
     }
 }

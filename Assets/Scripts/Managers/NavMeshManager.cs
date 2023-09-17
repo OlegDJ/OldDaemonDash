@@ -18,6 +18,8 @@ public class NavMeshManager : MonoBehaviour
 
     [SerializeField] private NavMeshSurface[] surfaces;
 
+    private void Start() { GenerateNavMeshSurface(); }
+
     public void GenerateNavMeshSurface()
     {
         foreach (NavMeshSurface surface in surfaces) surface.BuildNavMesh();
