@@ -1,24 +1,10 @@
-using System.Collections;
-using System.Collections.Generic;
 using Unity.AI.Navigation;
 using UnityEngine;
-using UnityEngine.AI;
 
+[RequireComponent(typeof(Manager))]
 public class NavMeshManager : MonoBehaviour
 {
-    #region Singleton
-    public static NavMeshManager instance;
-
-    private void Awake()
-    {
-        if (instance == null) instance = this;
-        else Destroy(gameObject);
-    }
-    #endregion
-
     [SerializeField] private NavMeshSurface[] surfaces;
-
-    private void Start() { GenerateNavMeshSurface(); }
 
     public void GenerateNavMeshSurface()
     {

@@ -2,28 +2,21 @@ using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 
+[RequireComponent(typeof(Manager))]
 public class PostProcessingManager : MonoBehaviour
 {
-    #region Singleton
-    public static PostProcessingManager instance;
-
-    private void Awake()
-    {
-        if (instance == null) instance = this;
-        else Destroy(gameObject);
-    }
-    #endregion
-
     [SerializeField] private float focusCAS = -40, cASChangeSpeed = 4f;
     private float normalCAS, desirableCAS;
 
     [SerializeField] private Volume volume;
     private ColorAdjustments cA;
 
-    private float GetDeltaTime() { return 1.0f / Time.unscaledDeltaTime * Time.deltaTime; }
+    private Manager mngr;
 
-    private void Start()
+    private void Awake()
     {
+        mngr = GetComponent<Manager>();
+
         volume.profile.TryGet(out cA);
 
         normalCAS = cA.saturation.value;
@@ -31,12 +24,12 @@ public class PostProcessingManager : MonoBehaviour
         desirableCAS = normalCAS;
     }
 
-    private void Update()
+    public void UpdateFunction()
     {
         if (cA.saturation.value != desirableCAS)
         {
-            cA.saturation.value =
-                Mathf.MoveTowards(cA.saturation.value, desirableCAS, cASChangeSpeed * GetDeltaTime());
+            cA.saturation.value = Mathf.MoveTowards(cA.saturation.value, desirableCAS,
+                cASChangeSpeed * mngr.GetDeltaTime());
         }
     }
 
