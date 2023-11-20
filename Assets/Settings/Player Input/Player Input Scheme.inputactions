@@ -2,7 +2,7 @@
     "name": "Player Input Scheme",
     "maps": [
         {
-            "name": "Player Movement",
+            "name": "Controls",
             "id": "6aa0d5c0-4475-4e5f-b282-08cbf452caa3",
             "actions": [
                 {
@@ -12,7 +12,7 @@
                     "expectedControlType": "Vector2",
                     "processors": "",
                     "interactions": "",
-                    "initialStateCheck": false
+                    "initialStateCheck": true
                 },
                 {
                     "name": "Rotation",
@@ -26,7 +26,7 @@
                 {
                     "name": "Run",
                     "type": "Button",
-                    "id": "05d611be-4b5d-4969-80b2-877b48e2f47b",
+                    "id": "6dbc22b1-5bea-4d82-8d4d-8230284d2037",
                     "expectedControlType": "Button",
                     "processors": "",
                     "interactions": "",
@@ -102,7 +102,7 @@
                 },
                 {
                     "name": "",
-                    "id": "5cccb757-3fc4-44cb-9e80-0c41466146d8",
+                    "id": "696724e9-b83f-4e5c-88b4-5f10d69dc398",
                     "path": "<Keyboard>/leftShift",
                     "interactions": "",
                     "processors": "",
@@ -145,13 +145,22 @@
                     "initialStateCheck": false
                 },
                 {
-                    "name": "Focus On Enemy",
+                    "name": "Focus",
                     "type": "Button",
                     "id": "e004e46e-4011-43d7-bf5b-b525bc2aa54f",
                     "expectedControlType": "Button",
                     "processors": "",
                     "interactions": "",
                     "initialStateCheck": false
+                },
+                {
+                    "name": "Move Focus Point",
+                    "type": "PassThrough",
+                    "id": "5326e22a-c2da-4ede-ba23-e9ea8485346d",
+                    "expectedControlType": "Vector2",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": true
                 }
             ],
             "bindings": [
@@ -173,7 +182,7 @@
                     "interactions": "",
                     "processors": "",
                     "groups": "",
-                    "action": "Focus On Enemy",
+                    "action": "Focus",
                     "isComposite": false,
                     "isPartOfComposite": false
                 },
@@ -196,6 +205,17 @@
                     "processors": "",
                     "groups": "",
                     "action": "Dash",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "b57073f0-8892-4aa7-918c-ab3ba4e34061",
+                    "path": "<Mouse>/scroll",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "Move Focus Point",
                     "isComposite": false,
                     "isPartOfComposite": false
                 }

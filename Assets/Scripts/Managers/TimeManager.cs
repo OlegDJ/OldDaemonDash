@@ -4,7 +4,7 @@ using UnityEngine;
 public class TimeManager : MonoBehaviour
 {
     [SerializeField, Range(0f, 1f)] private float slowedTimeScale = 0.2f;
-    [SerializeField] private float changeSpeed = 0.1f;
+    [SerializeField] private float timeChangeSpeed = 0.1f;
     private float targetTimeScale;
 
     private Manager mngr;
@@ -21,7 +21,7 @@ public class TimeManager : MonoBehaviour
         if (Time.timeScale != targetTimeScale)
         {
             Time.timeScale = Mathf.Clamp01(
-                Mathf.MoveTowards(Time.timeScale, targetTimeScale, changeSpeed * mngr.GetDeltaTime()));
+                Mathf.MoveTowards(Time.timeScale, targetTimeScale, timeChangeSpeed * mngr.GetUnscaledDeltaTime()));
             Time.fixedDeltaTime = Time.timeScale * 0.02f;
         }
     }

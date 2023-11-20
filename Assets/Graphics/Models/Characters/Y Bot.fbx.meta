@@ -1,19 +1,19 @@
 fileFormatVersion: 2
 guid: 355c804b1cbc92e479c47c770372ecd1
 ModelImporter:
-  serializedVersion: 21300
+  serializedVersion: 22200
   internalIDToNameTable: []
   externalObjects:
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
       name: Alpha_Body_MAT
-    second: {fileID: 2100000, guid: 67afb1a5e365cfc4e81b067a12ad627d, type: 2}
+    second: {fileID: 2100000, guid: 572c13ae306178b428b272fe6c9190fa, type: 2}
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
       name: Alpha_Joints_MAT
-    second: {fileID: 2100000, guid: 1c2a056b8925175449d59aad1f864562, type: 2}
+    second: {fileID: 2100000, guid: 61a838322434b6c4aa0e6f3c7a0a17e7, type: 2}
   materials:
     materialImportMode: 2
     materialName: 0
@@ -50,6 +50,7 @@ ModelImporter:
     addColliders: 0
     useSRGBMaterialColor: 1
     sortHierarchyByName: 1
+    importPhysicalCameras: 1
     importVisibility: 1
     importBlendShapes: 1
     importCameras: 1
@@ -77,6 +78,7 @@ ModelImporter:
     secondaryUVMinObjectScale: 1
     secondaryUVPackMargin: 4
     useFileScale: 1
+    strictVertexDataChecks: 0
   tangentSpace:
     normalSmoothAngle: 60
     normalImportMode: 0
@@ -109,6 +111,7 @@ ModelImporter:
   humanoidOversampling: 1
   avatarSetup: 0
   addHumanoidExtraRootOnlyWhenUsingAvatar: 1
+  importBlendShapeDeformPercent: 0
   remapMaterialsIfMaterialImportModeIsNone: 0
   additionalBone: 0
   userData: 

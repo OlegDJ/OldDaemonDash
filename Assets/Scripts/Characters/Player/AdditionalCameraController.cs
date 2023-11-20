@@ -1,19 +1,16 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
 public class AdditionalCameraController : MonoBehaviour
 {
-    private GameObject mainCamera;
+    private Transform mainCamera;
 
     private void Awake()
     {
-        mainCamera = Camera.main.gameObject;
+        mainCamera = Camera.main.transform;
     }
 
     private void LateUpdate()
     {
-        transform.position = mainCamera.transform.position;
-        transform.rotation = mainCamera.transform.rotation;
+        transform.SetLocalPositionAndRotation(mainCamera.localPosition, mainCamera.localRotation);
     }
 }

@@ -1,15 +1,24 @@
+using System.Linq;
 using UnityEngine;
-using Cinemachine;
 
 [RequireComponent(typeof(Rigidbody))]
 public class PlayerController : MonoBehaviour
 {
-    #region Input
-    [Header("Input")]
-    [SerializeField] private float inputSmoothValue = 0.5f;
-    private Vector2 moveInput, smoothedMoveInput, rotInput;
-    private float movePower, desirableMovePower;
-    private bool isDashing, isBlocking;
+    #region States
+    [Header("States")] // Controls
+    public bool canMove = true;
+    public bool canRotateBody = true;
+    public bool canRun = true, isRunning;
+
+    [Space(7.5f)] // Actions
+    public bool canAttack = true;
+    public bool canDash = true, isDashing;
+    public bool canBlock = true, isBlocking;
+    public bool canFocus = true, isFocusing, isFocusChanging;
+
+    [Space(7.5f)] // Orientation
+    public bool isGrounded;
+    public bool isSloped;
     #endregion
 
     #region Health
@@ -21,43 +30,43 @@ public class PlayerController : MonoBehaviour
     #region Energy
     [Header("Energy")]
     [SerializeField] private float maxEnergy = 200f;
-    [SerializeField] private float energyReviveSpeed = 0.5f;
-    [SerializeField] private float energyReduceAttack = 25f, energyReduceDash = 50f, energyReduceDodge = 5f;
-    private float energy;
+    [SerializeField] private float energyReviveSpeed = 0.5f, energyReduceRun = 0.2f;
+    [SerializeField] private float energyReduceAttack = 25f, energyReduceDash = 0.6f, energyReduceDodge = 5f;
+    private float energy, desirableDashEnergy;
     #endregion
 
     #region Movement
     [Header("Movement")]
-    [SerializeField] private bool canMove = true;
     [SerializeField] private float walkSpeed = 5f;
     [SerializeField] private float runSpeed = 10f;
     private float moveSpeed;
     private Vector3 moveDirection, targetVelocity;
-    private bool isRunning;
     [SerializeField] private Vector3 checkRayOffset = new Vector3(0f, 0.1f, 0f);
 
     [Space(7.5f)] // Ground Check
     [SerializeField] private float groundDrag = 5f;
-    private bool isGrounded;
 
     [Space(7.5f)] // Slope Check
     [SerializeField] private float maxSlopeAngle = 45f;
     [SerializeField] private float slopeCheckRayLength = 0.3f;
     private RaycastHit slopeHit;
-    private bool isSloped;
     #endregion
 
     #region Rotation
     [Header("Rotation")]
-    [SerializeField] private float rotationSpeed = 8f;
-    [SerializeField] private float cameraClamp = 60f, changeFocusSpeed = 2f;
-    private Vector3 rotationDirection, focusTargetRotation;
-    private Quaternion lookRotation, rotateTowards, targetRotation, deltaRotation;
-    private float xRotation;
+    [SerializeField] private float rotationSpeed = 0.2f;
+    private Vector3 rotationDirection;
+    private Vector3 smoothedRotationDirection;
+
+    //private Quaternion lookRotation, targetRotation;
+
+    //private float curBodyYRotation, targetBodyYRotation, bodyYVelocity;
     #endregion
 
     #region Focus
-    private bool isFocusChanging;
+    [Header("Focus")]
+    [SerializeField] private float focusChangeRange = 45f;
+    private RaycastHit focusChangeHit;
     #endregion
 
     #region Dashing
@@ -68,140 +77,117 @@ public class PlayerController : MonoBehaviour
     private float dashCooldownTimer;
     #endregion
 
-    #region Camera
-    [Header("Camera")]
-    [SerializeField] private float normalFOV = 40f;
-    [SerializeField] private float dashFOV = 60f, fOVChangeSpeed = 1f;
-    private float desirableFOV;
-    #endregion
-
     #region Stuff
     [Header("Stuff")]
     [SerializeField] private Vector3 popUpTextOffset = new Vector3(0f, 1.25f, 0f);
     [SerializeField] private float animationSpeed = 0.05f;
+    [HideInInspector] public float movePower, desirableMovePower;
     #endregion
 
     #region References
     [Header("References")]
-    [SerializeField] private CinemachineFreeLook normalVirtualCamera;
-    [SerializeField] private CinemachineVirtualCamera shoulderVirtualCamera;
-    [SerializeField] private Transform focusChangeCameraHandler;
+    [SerializeField] private CameraController camControl;
     [SerializeField] private GameObject ragdollPrefab;
     private Transform trnsfrm;
     private Rigidbody rb;
-    private Transform mainCamera;
-    private PlayerInputScheme playerInputScheme;
-    private Focusable focusObject;
     private Animator anim;
     private Manager mngr;
+    [HideInInspector] public Focusable focusTarget;
     #endregion
 
     private void Awake()
     {
-        Cursor.lockState = CursorLockMode.Locked;
-
         trnsfrm = transform;
         rb = GetComponent<Rigidbody>();
-        mainCamera = Camera.main.transform;
         anim = GetComponentInChildren<Animator>();
-        GameObject mainManager = GameObject.FindGameObjectWithTag("Manager");
-        mngr = GameObject.FindGameObjectWithTag("Manager").GetComponent<Manager>();
+        //mngr = GameObject.FindGameObjectWithTag("Manager").GetComponent<Manager>();
     }
 
     private void Start()
     {
+        mngr = Manager.mngr;
+
+        canMove = true;
+
         mngr.ui.SetHealthBarMaxValue(maxHealth);
         health = maxHealth;
 
         mngr.ui.SetEnergyBarMaxValue(maxEnergy);
         energy = maxEnergy;
-
-        desirableFOV = normalFOV;
-        SetCamerasPriorities(1, 0);
     }
-    
-    private void OnEnable()
+
+    private void HandlePermits()
     {
-        if (playerInputScheme == null)
-        {
-            playerInputScheme = new PlayerInputScheme();
+        canMove = canRotateBody = true;
+        canRun = energy > 0f && mngr.input.movement.magnitude > 0f;
+        canAttack = energy >= energyReduceAttack;
+        canDash = energy >= energyReduceDash && mngr.input.movement.magnitude > 0f && dashCooldownTimer <= 0f;
+        canBlock = energy >= energyReduceDodge;
+        canFocus = true;
 
-            playerInputScheme.PlayerMovement.Movement.performed += playerInputScheme =>
-            moveInput = playerInputScheme.ReadValue<Vector2>();
+        if (isDashing) canRun = canAttack = canBlock =
+                isRunning = isBlocking = isFocusChanging = false;
+        if (isBlocking) canDash = canRun = canAttack =
+                isDashing = isRunning = false;
+        if (isFocusChanging) canMove = canRotateBody = canRun = canAttack = canDash = canBlock =
+                isRunning = isDashing = isBlocking = isFocusing = false;
 
-            playerInputScheme.PlayerMovement.Rotation.performed += playerInputScheme =>
-            rotInput = playerInputScheme.ReadValue<Vector2>();
-
-            playerInputScheme.PlayerMovement.Run.performed += playerInputScheme =>
-            {
-                if (energy > 0f && !isDashing) isRunning = true;
-            };
-            playerInputScheme.PlayerMovement.Run.canceled += playerInputScheme => isRunning = false;
-
-            playerInputScheme.Actions.Attack.started += playerInputScheme =>
-            {
-                if (energy >= energyReduceAttack) Attack();
-            };
-
-            playerInputScheme.Actions.FocusOnEnemy.performed += playerInputScheme => SetFocusChange(true);
-            playerInputScheme.Actions.FocusOnEnemy.canceled += playerInputScheme => SetFocusChange(false);
-
-            playerInputScheme.Actions.Dash.started += playerInputScheme =>
-            {
-                if (moveInput.magnitude > 0f && energy >= energyReduceDash) Dash();
-            };
-
-            playerInputScheme.Actions.Block.started += playerInputScheme =>
-            {
-                if (energy >= energyReduceDodge) isBlocking = true;
-            };
-            playerInputScheme.Actions.Block.canceled += playerInputScheme => isBlocking = false;
-        }
-
-        playerInputScheme.Enable();
+        if (!canFocus) CancelFocusChange();
     }
 
-    private void OnDisable() { playerInputScheme.Disable(); }
+    public void Action(ActType actionType)
+    {
+        switch (actionType)
+        {
+            case ActType.RunPerf:
+                if (!canRun) return;
+                isRunning = true;
+                camControl.RunFOV();
+                return;
+            case ActType.RunCanc:
+                isRunning = false;
+                return;
+            case ActType.AttackStrtd:
+                if (canAttack) Attack();
+                return;
+            case ActType.FocusChangePerf:
+                if (canFocus) PerformFocusChange();
+                return;
+            case ActType.FocusChangeCanc:
+                if (canFocus) CancelFocusChange();
+                return;
+            case ActType.DashStrtd:
+                if (canDash) Dash();
+                return;
+            case ActType.BlockStrtd:
+                if (!canBlock) return;
+                isBlocking = true;
+                canMove = false;
+                return;
+            case ActType.BlockCanc:
+                isBlocking = false;
+                canMove = true;
+                return;
+        }
+    }
 
     private void FixedUpdate()
     {
         GroundCheck();
         SlopeCheck();
-        FixedRotation();
+        if (isFocusChanging) FocusChangeFixedUpdate();
+        if (canRotateBody && !isFocusing) NormalRotation();
         Movement();
     }
 
     private void Update()
     {
-        SmoothInput();
+        HandlePermits();
         HandleHealth();
         HandleEnergy();
-        Rotation();
+        if (canRotateBody && isFocusing) FocusRotation();
         DashUpdate();
         Animation();
-    }
-
-    private void DashUpdate()
-    {
-        if (dashCooldownTimer > 0) dashCooldownTimer -= Time.deltaTime;
-
-        if (isDashing)
-        {
-            if (moveInput.magnitude == 0f) ResetDash();
-            desirableFOV = dashFOV;
-        }
-        else desirableFOV = normalFOV;
-
-        if (normalVirtualCamera.m_Lens.FieldOfView != desirableFOV)
-            normalVirtualCamera.m_Lens.FieldOfView =
-                Mathf.MoveTowards(normalVirtualCamera.m_Lens.FieldOfView,
-                desirableFOV, fOVChangeSpeed * mngr.GetDeltaTime());
-    }
-
-    private void SmoothInput()
-    {
-        if (smoothedMoveInput != moveInput) smoothedMoveInput =
-                Vector2.MoveTowards(smoothedMoveInput, moveInput, inputSmoothValue * mngr.GetDeltaTime());
     }
 
     private void HandleHealth()
@@ -213,8 +199,12 @@ public class PlayerController : MonoBehaviour
 
     private void HandleEnergy()
     {
-        if ((moveInput.magnitude <= 0f || !isRunning) && energy < maxEnergy && !isBlocking)
+        if (energy < maxEnergy && !isBlocking && !isRunning && !isDashing)
             energy += energyReviveSpeed * mngr.GetDeltaTime();
+        else if (isRunning)
+            energy -= energyReduceRun * mngr.GetDeltaTime();
+        else if (isDashing)
+            energy -= energyReduceDash * mngr.GetDeltaTime();
         energy = Mathf.Clamp(energy, 0, maxEnergy);
         mngr.ui.SetEnergyBarValue(energy);
     }
@@ -237,11 +227,7 @@ public class PlayerController : MonoBehaviour
 
     private void Death()
     {
-        GameObject ragdoll =
-            Instantiate(ragdollPrefab, transform.position, transform.rotation, transform.parent);
-
-        normalVirtualCamera.m_Follow = ragdoll.transform;
-        normalVirtualCamera.m_LookAt = ragdoll.transform;
+        Instantiate(ragdollPrefab, transform.position, transform.rotation, transform.parent);
 
         mngr.popUpTxt.DisplayDeathPopUpText(transform.position + popUpTextOffset);
 
@@ -270,10 +256,8 @@ public class PlayerController : MonoBehaviour
 
     private void Movement()
     {
-        if (canMove && smoothedMoveInput.magnitude > 0f)
+        if (canMove && mngr.input.smoothedMovement.magnitude > 0f)
         {
-            if (isRunning && energy <= 0f) isRunning = false;
-
             if (!isDashing)
             {
                 if (isRunning) moveSpeed = runSpeed;
@@ -281,7 +265,8 @@ public class PlayerController : MonoBehaviour
             }
             else moveSpeed = dashSpeed;
 
-            moveDirection = mainCamera.right * smoothedMoveInput.x + mainCamera.forward * smoothedMoveInput.y;
+            moveDirection = camControl.mCamTrnsfrm.right * mngr.input.smoothedMovement.x +
+                camControl.mCamTrnsfrm.forward * mngr.input.smoothedMovement.y;
             moveDirection.y = 0f;
             moveDirection.Normalize();
 
@@ -316,102 +301,133 @@ public class PlayerController : MonoBehaviour
         return Vector3.ProjectOnPlane(moveDirection, slopeHit.normal).normalized;
     }
 
-    private void FixedRotation()
+    private void NormalRotation()
     {
-        if (!isFocusChanging)
-        {
-            rotationDirection = mainCamera.right * moveInput.x + mainCamera.forward * moveInput.y;
-            rotationDirection.y = 0f;
-            rotationDirection.Normalize();
+        rotationDirection = camControl.camPivotTrnsfrm.right * mngr.input.movement.x +
+            camControl.camPivotTrnsfrm.forward * mngr.input.movement.y;
+        rotationDirection.y = 0f;
+        rotationDirection.Normalize();
 
-            if (moveInput.magnitude > 0f)
+        if (mngr.input.movement.magnitude > 0f)
+        {
+            smoothedRotationDirection = Vector3.Slerp(trnsfrm.forward, 
+                rotationDirection.normalized, rotationSpeed) * mngr.GetFixedDeltaTime();
+            trnsfrm.forward = smoothedRotationDirection;
+
+            //lookRotation = Quaternion.LookRotation(rotationDirection);
+            //targetRotation = Quaternion.RotateTowards(trnsfrm.rotation, lookRotation, rotationSpeed *
+            //mngr.GetDeltaTime());
+            //trnsfrm.localRotation = targetRotation;
+        }
+
+        //if (mngr.input.movement.magnitude > 0f)
+        //{
+        //    targetBodyYRotation = Mathf.Atan2(mngr.input.movement.x, mngr.input.movement.y) * Mathf.Rad2Deg;
+        //    targetBodyYRotation -= camControl.yAngleOffset;
+        //    curBodyYRotation = Mathf.SmoothDampAngle(curBodyYRotation,
+        //        targetBodyYRotation, ref bodyYVelocity, rotationSpeed);
+        //}
+        //trnsfrm.eulerAngles = new Vector3(0f, curBodyYRotation, 0f);
+    }
+
+    private void FocusRotation()
+    {
+        trnsfrm.LookAt(new Vector3(camControl.focusPoint.position.x,
+            trnsfrm.position.y, camControl.focusPoint.position.z));
+    }
+
+    private void Attack() { energy -= energyReduceAttack; anim.SetTrigger("Attack"); }
+
+    private void TurnFocusChange(bool on)
+    {
+        if (on) mngr.time.SlowDownTime();
+        else mngr.time.SpeedUpTime();
+
+        mngr.postProc.SetColorAdjustmentsSaturation(on);
+    }
+
+    private void PerformFocusChange()
+    {
+        if (isFocusing) camControl.AfterFocus();
+        else camControl.StartTransition(true);
+        isFocusChanging = true;
+        mngr.ui.TurnCrosshair(true);
+        TurnFocusChange(true);
+    }
+
+    private void CancelFocusChange()
+    {
+        if (focusTarget != null && canFocus)
+        {
+            isFocusing = true;
+            camControl.BeforeFocus(focusTarget.focusPoints[focusTarget.startFocusPoint].position,
+                focusTarget.startFocusPoint,
+                focusTarget.focusPoints.ToList(),
+                focusTarget.focusPoints[focusTarget.startFocusPoint + 1],
+                focusTarget.focusPoints[focusTarget.startFocusPoint - 1]);
+        }
+        else
+        {
+            camControl.StartTransition(true);
+            mngr.ui.TurnCrosshair(false);
+        }
+        isFocusChanging = false;
+        TurnFocusChange(false);
+    }
+
+    private void FocusChangeFixedUpdate()
+    {
+        if (Physics.Raycast(camControl.mCamTrnsfrm.position, camControl.mCamTrnsfrm.forward,
+            out focusChangeHit, focusChangeRange))
+        {
+            if (!focusChangeHit.transform.GetComponent<Focusable>())
             {
-                lookRotation = Quaternion.LookRotation(rotationDirection);
-                rotateTowards = Quaternion.RotateTowards(trnsfrm.rotation, lookRotation, rotationSpeed * mngr.GetFixedDeltaTime());
-                rb.MoveRotation(rotateTowards);
-                //targetRotation = Quaternion.RotateTowards(trnsfrm.rotation, lookRotation, rotationSpeed * mngr.GetFixedDeltaTime());
-                //trnsfrm.rotation = targetRotation;
+                mngr.ui.ChangeCrosshairAlpha(false);
+                focusTarget = null;
+                mngr.ui.SetFocusInfoText("Nothing");
+            }
+            else
+            {
+                mngr.ui.ChangeCrosshairAlpha(true);
+                focusTarget = focusChangeHit.transform.GetComponent<Focusable>();
+                mngr.ui.SetFocusInfoText(focusChangeHit.transform.name);
             }
         }
-        else
+    }
+
+    private void DashUpdate()
+    {
+        if (dashCooldownTimer > 0f && !isDashing) dashCooldownTimer -= Time.deltaTime;
+        else if (dashCooldownTimer < 0f) dashCooldownTimer = 0f;
+
+        if (isDashing)
         {
-            deltaRotation = Quaternion.Euler(Vector3.up * rotInput.x * changeFocusSpeed * mngr.GetFixedUnscaledDeltaTime());
-            rb.MoveRotation(trnsfrm.rotation * deltaRotation);
-            //trnsfrm.Rotate(Vector3.up * rotInput.x * rotationSpeed * mngr.GetUnscaledDeltaTime());
+            if (mngr.input.movement.magnitude == 0f || energy <= 0f) ResetDash();
+            camControl.DashFOV();
         }
-    }
-
-    private void Rotation()
-    {
-        if (isFocusChanging)
-        {
-            xRotation -= rotInput.y * changeFocusSpeed * mngr.GetUnscaledDeltaTime();
-            xRotation = Mathf.Clamp(xRotation, -cameraClamp, cameraClamp);
-            focusChangeCameraHandler.localRotation = Quaternion.Euler(xRotation, 0f, 0f);
-        }
-    }
-
-    private void Attack()
-    {
-        energy -= energyReduceAttack;
-        anim.SetTrigger("Attack");
-    }
-
-    private void SetFocusChange(bool isEnabled)
-    {
-        isFocusChanging = isEnabled;
-
-        if (isEnabled)
-        {
-            mngr.time.SlowDownTime();
-            SetCamerasPriorities(0, 1);
-            canMove = false;
-        }
-        else
-        {
-            mngr.time.SpeedUpTime();
-            SetCamerasPriorities(1, 0);
-            canMove = true;
-        }
-
-        mngr.postProc.SetColorAdjustmentsSaturation(isEnabled);
-    }
-
-    private void StartFocus()
-    {
-        //isFocusing = true;
-    }
-
-    private void EndFocus()
-    {
-        //isFocusing = false;
-    }
-
-    private void SetCamerasPriorities(int normal, int shoulder)
-    {
-        normalVirtualCamera.Priority = normal;
-        shoulderVirtualCamera.Priority = shoulder;
+        else if (!isRunning) camControl.NormalFOV();
     }
 
     private void Dash()
     {
-        if (dashCooldownTimer > 0f && !canMove) return;
-        else dashCooldownTimer = dashCooldown;
+        isRunning = isBlocking = false;
+
+        dashCooldownTimer = dashCooldown;
 
         rb.AddForce(dashStartOffset, ForceMode.VelocityChange);
 
         isDashing = true;
 
-        energy -= energyReduceDash;
+        desirableDashEnergy = energy - energyReduceDash;
 
         Invoke(nameof(ResetDash), dashDuration);
     }
 
-    private void ResetDash() { isDashing = false; }
+    private void ResetDash() { isDashing = false; desirableDashEnergy = 0f; }
 
     private void Animation()
     {
-        if (moveInput.magnitude > 0f && canMove)
+        if (mngr.input.movement.magnitude > 0f && canMove)
         {
             if (isRunning) desirableMovePower = 1f;
             else desirableMovePower = 0.5f;

@@ -1,6 +1,6 @@
-using System.Collections;
 using UnityEngine;
 
+[RequireComponent(typeof(InputManager))]
 [RequireComponent(typeof(TimeManager))]
 [RequireComponent(typeof(UIManager))]
 [RequireComponent(typeof(NavMeshManager))]
@@ -21,35 +21,24 @@ public class Manager : MonoBehaviour
     public static Manager mngr;
 
     [HideInInspector] public GameObject player;
+    [HideInInspector] public PlayerController playerController;
 
-    [HideInInspector] public GameObject mngrObj;
+    [HideInInspector] public InputManager input;
     [HideInInspector] public TimeManager time;
     [HideInInspector] public UIManager ui;
     [HideInInspector] public NavMeshManager navMesh;
     [HideInInspector] public PostProcessingManager postProc;
     [HideInInspector] public PopUpTextManager popUpTxt;
     
-    public float deltaTimeMultiplier = 62.5f;
+    public static float deltaTimeMultiplier = 62.5f;
 
-    public float GetDeltaTime()
-    {
-        return Time.deltaTime * deltaTimeMultiplier;
-    }
+    public float GetDeltaTime() { return Time.deltaTime * deltaTimeMultiplier; }
+    public float GetUnscaledDeltaTime() { return Time.unscaledDeltaTime * deltaTimeMultiplier; }
+    public float GetFixedDeltaTime() { return Time.fixedDeltaTime * deltaTimeMultiplier; }
+    public float GetFixedUnscaledDeltaTime() { return Time.fixedUnscaledDeltaTime * deltaTimeMultiplier; }
 
-    public float GetUnscaledDeltaTime()
-    {
-        return Time.unscaledDeltaTime * deltaTimeMultiplier;
-    }
-
-    public float GetFixedDeltaTime()
-    {
-        return Time.fixedDeltaTime * deltaTimeMultiplier;
-    }
-
-    public float GetFixedUnscaledDeltaTime()
-    {
-        return Time.fixedUnscaledDeltaTime * deltaTimeMultiplier;
-    }
+    private void OnEnable() { input.EnableFunction(); }
+    private void OnDisable() { input.DisableFunction(); }
 
     private void Awake()
     {
@@ -57,20 +46,23 @@ public class Manager : MonoBehaviour
         else mngr = this;
 
         player = GameObject.FindGameObjectWithTag("Player");
+        playerController = player.GetComponent<PlayerController>();
 
-        mngrObj = gameObject;
-        time = mngrObj.GetComponent<TimeManager>();
-        navMesh = mngrObj.GetComponent<NavMeshManager>();
-        postProc = mngrObj.GetComponent<PostProcessingManager>();
-        popUpTxt = mngrObj.GetComponent<PopUpTextManager>();
-        ui = mngrObj.GetComponent<UIManager>();
+        input = GetComponent<InputManager>();
+        time = GetComponent<TimeManager>();
+        ui = GetComponent<UIManager>();
+        navMesh = GetComponent<NavMeshManager>();
+        postProc = GetComponent<PostProcessingManager>();
+        popUpTxt = GetComponent<PopUpTextManager>();
 
         navMesh.GenerateNavMeshSurface();
     }
 
     private void Update()
     {
-        postProc.UpdateFunction();
+        input.UpdateFunction();
         time.UpdateFunction();
+        ui.UpdateFunction();
+        postProc.UpdateFunction();
     }
 }

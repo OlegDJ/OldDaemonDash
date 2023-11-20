@@ -24,7 +24,7 @@ public partial class @PlayerInputScheme: IInputActionCollection2, IDisposable
     ""name"": ""Player Input Scheme"",
     ""maps"": [
         {
-            ""name"": ""Player Movement"",
+            ""name"": ""Controls"",
             ""id"": ""6aa0d5c0-4475-4e5f-b282-08cbf452caa3"",
             ""actions"": [
                 {
@@ -34,7 +34,7 @@ public partial class @PlayerInputScheme: IInputActionCollection2, IDisposable
                     ""expectedControlType"": ""Vector2"",
                     ""processors"": """",
                     ""interactions"": """",
-                    ""initialStateCheck"": false
+                    ""initialStateCheck"": true
                 },
                 {
                     ""name"": ""Rotation"",
@@ -48,7 +48,7 @@ public partial class @PlayerInputScheme: IInputActionCollection2, IDisposable
                 {
                     ""name"": ""Run"",
                     ""type"": ""Button"",
-                    ""id"": ""05d611be-4b5d-4969-80b2-877b48e2f47b"",
+                    ""id"": ""6dbc22b1-5bea-4d82-8d4d-8230284d2037"",
                     ""expectedControlType"": ""Button"",
                     ""processors"": """",
                     ""interactions"": """",
@@ -124,7 +124,7 @@ public partial class @PlayerInputScheme: IInputActionCollection2, IDisposable
                 },
                 {
                     ""name"": """",
-                    ""id"": ""5cccb757-3fc4-44cb-9e80-0c41466146d8"",
+                    ""id"": ""696724e9-b83f-4e5c-88b4-5f10d69dc398"",
                     ""path"": ""<Keyboard>/leftShift"",
                     ""interactions"": """",
                     ""processors"": """",
@@ -167,13 +167,22 @@ public partial class @PlayerInputScheme: IInputActionCollection2, IDisposable
                     ""initialStateCheck"": false
                 },
                 {
-                    ""name"": ""Focus On Enemy"",
+                    ""name"": ""Focus"",
                     ""type"": ""Button"",
                     ""id"": ""e004e46e-4011-43d7-bf5b-b525bc2aa54f"",
                     ""expectedControlType"": ""Button"",
                     ""processors"": """",
                     ""interactions"": """",
                     ""initialStateCheck"": false
+                },
+                {
+                    ""name"": ""Move Focus Point"",
+                    ""type"": ""PassThrough"",
+                    ""id"": ""5326e22a-c2da-4ede-ba23-e9ea8485346d"",
+                    ""expectedControlType"": ""Vector2"",
+                    ""processors"": """",
+                    ""interactions"": """",
+                    ""initialStateCheck"": true
                 }
             ],
             ""bindings"": [
@@ -195,7 +204,7 @@ public partial class @PlayerInputScheme: IInputActionCollection2, IDisposable
                     ""interactions"": """",
                     ""processors"": """",
                     ""groups"": """",
-                    ""action"": ""Focus On Enemy"",
+                    ""action"": ""Focus"",
                     ""isComposite"": false,
                     ""isPartOfComposite"": false
                 },
@@ -220,23 +229,35 @@ public partial class @PlayerInputScheme: IInputActionCollection2, IDisposable
                     ""action"": ""Dash"",
                     ""isComposite"": false,
                     ""isPartOfComposite"": false
+                },
+                {
+                    ""name"": """",
+                    ""id"": ""b57073f0-8892-4aa7-918c-ab3ba4e34061"",
+                    ""path"": ""<Mouse>/scroll"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": """",
+                    ""action"": ""Move Focus Point"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": false
                 }
             ]
         }
     ],
     ""controlSchemes"": []
 }");
-        // Player Movement
-        m_PlayerMovement = asset.FindActionMap("Player Movement", throwIfNotFound: true);
-        m_PlayerMovement_Movement = m_PlayerMovement.FindAction("Movement", throwIfNotFound: true);
-        m_PlayerMovement_Rotation = m_PlayerMovement.FindAction("Rotation", throwIfNotFound: true);
-        m_PlayerMovement_Run = m_PlayerMovement.FindAction("Run", throwIfNotFound: true);
+        // Controls
+        m_Controls = asset.FindActionMap("Controls", throwIfNotFound: true);
+        m_Controls_Movement = m_Controls.FindAction("Movement", throwIfNotFound: true);
+        m_Controls_Rotation = m_Controls.FindAction("Rotation", throwIfNotFound: true);
+        m_Controls_Run = m_Controls.FindAction("Run", throwIfNotFound: true);
         // Actions
         m_Actions = asset.FindActionMap("Actions", throwIfNotFound: true);
         m_Actions_Attack = m_Actions.FindAction("Attack", throwIfNotFound: true);
         m_Actions_Dash = m_Actions.FindAction("Dash", throwIfNotFound: true);
         m_Actions_Block = m_Actions.FindAction("Block", throwIfNotFound: true);
-        m_Actions_FocusOnEnemy = m_Actions.FindAction("Focus On Enemy", throwIfNotFound: true);
+        m_Actions_Focus = m_Actions.FindAction("Focus", throwIfNotFound: true);
+        m_Actions_MoveFocusPoint = m_Actions.FindAction("Move Focus Point", throwIfNotFound: true);
     }
 
     public void Dispose()
@@ -295,28 +316,28 @@ public partial class @PlayerInputScheme: IInputActionCollection2, IDisposable
         return asset.FindBinding(bindingMask, out action);
     }
 
-    // Player Movement
-    private readonly InputActionMap m_PlayerMovement;
-    private List<IPlayerMovementActions> m_PlayerMovementActionsCallbackInterfaces = new List<IPlayerMovementActions>();
-    private readonly InputAction m_PlayerMovement_Movement;
-    private readonly InputAction m_PlayerMovement_Rotation;
-    private readonly InputAction m_PlayerMovement_Run;
-    public struct PlayerMovementActions
+    // Controls
+    private readonly InputActionMap m_Controls;
+    private List<IControlsActions> m_ControlsActionsCallbackInterfaces = new List<IControlsActions>();
+    private readonly InputAction m_Controls_Movement;
+    private readonly InputAction m_Controls_Rotation;
+    private readonly InputAction m_Controls_Run;
+    public struct ControlsActions
     {
         private @PlayerInputScheme m_Wrapper;
-        public PlayerMovementActions(@PlayerInputScheme wrapper) { m_Wrapper = wrapper; }
-        public InputAction @Movement => m_Wrapper.m_PlayerMovement_Movement;
-        public InputAction @Rotation => m_Wrapper.m_PlayerMovement_Rotation;
-        public InputAction @Run => m_Wrapper.m_PlayerMovement_Run;
-        public InputActionMap Get() { return m_Wrapper.m_PlayerMovement; }
+        public ControlsActions(@PlayerInputScheme wrapper) { m_Wrapper = wrapper; }
+        public InputAction @Movement => m_Wrapper.m_Controls_Movement;
+        public InputAction @Rotation => m_Wrapper.m_Controls_Rotation;
+        public InputAction @Run => m_Wrapper.m_Controls_Run;
+        public InputActionMap Get() { return m_Wrapper.m_Controls; }
         public void Enable() { Get().Enable(); }
         public void Disable() { Get().Disable(); }
         public bool enabled => Get().enabled;
-        public static implicit operator InputActionMap(PlayerMovementActions set) { return set.Get(); }
-        public void AddCallbacks(IPlayerMovementActions instance)
+        public static implicit operator InputActionMap(ControlsActions set) { return set.Get(); }
+        public void AddCallbacks(IControlsActions instance)
         {
-            if (instance == null || m_Wrapper.m_PlayerMovementActionsCallbackInterfaces.Contains(instance)) return;
-            m_Wrapper.m_PlayerMovementActionsCallbackInterfaces.Add(instance);
+            if (instance == null || m_Wrapper.m_ControlsActionsCallbackInterfaces.Contains(instance)) return;
+            m_Wrapper.m_ControlsActionsCallbackInterfaces.Add(instance);
             @Movement.started += instance.OnMovement;
             @Movement.performed += instance.OnMovement;
             @Movement.canceled += instance.OnMovement;
@@ -328,7 +349,7 @@ public partial class @PlayerInputScheme: IInputActionCollection2, IDisposable
             @Run.canceled += instance.OnRun;
         }
 
-        private void UnregisterCallbacks(IPlayerMovementActions instance)
+        private void UnregisterCallbacks(IControlsActions instance)
         {
             @Movement.started -= instance.OnMovement;
             @Movement.performed -= instance.OnMovement;
@@ -341,21 +362,21 @@ public partial class @PlayerInputScheme: IInputActionCollection2, IDisposable
             @Run.canceled -= instance.OnRun;
         }
 
-        public void RemoveCallbacks(IPlayerMovementActions instance)
+        public void RemoveCallbacks(IControlsActions instance)
         {
-            if (m_Wrapper.m_PlayerMovementActionsCallbackInterfaces.Remove(instance))
+            if (m_Wrapper.m_ControlsActionsCallbackInterfaces.Remove(instance))
                 UnregisterCallbacks(instance);
         }
 
-        public void SetCallbacks(IPlayerMovementActions instance)
+        public void SetCallbacks(IControlsActions instance)
         {
-            foreach (var item in m_Wrapper.m_PlayerMovementActionsCallbackInterfaces)
+            foreach (var item in m_Wrapper.m_ControlsActionsCallbackInterfaces)
                 UnregisterCallbacks(item);
-            m_Wrapper.m_PlayerMovementActionsCallbackInterfaces.Clear();
+            m_Wrapper.m_ControlsActionsCallbackInterfaces.Clear();
             AddCallbacks(instance);
         }
     }
-    public PlayerMovementActions @PlayerMovement => new PlayerMovementActions(this);
+    public ControlsActions @Controls => new ControlsActions(this);
 
     // Actions
     private readonly InputActionMap m_Actions;
@@ -363,7 +384,8 @@ public partial class @PlayerInputScheme: IInputActionCollection2, IDisposable
     private readonly InputAction m_Actions_Attack;
     private readonly InputAction m_Actions_Dash;
     private readonly InputAction m_Actions_Block;
-    private readonly InputAction m_Actions_FocusOnEnemy;
+    private readonly InputAction m_Actions_Focus;
+    private readonly InputAction m_Actions_MoveFocusPoint;
     public struct ActionsActions
     {
         private @PlayerInputScheme m_Wrapper;
@@ -371,7 +393,8 @@ public partial class @PlayerInputScheme: IInputActionCollection2, IDisposable
         public InputAction @Attack => m_Wrapper.m_Actions_Attack;
         public InputAction @Dash => m_Wrapper.m_Actions_Dash;
         public InputAction @Block => m_Wrapper.m_Actions_Block;
-        public InputAction @FocusOnEnemy => m_Wrapper.m_Actions_FocusOnEnemy;
+        public InputAction @Focus => m_Wrapper.m_Actions_Focus;
+        public InputAction @MoveFocusPoint => m_Wrapper.m_Actions_MoveFocusPoint;
         public InputActionMap Get() { return m_Wrapper.m_Actions; }
         public void Enable() { Get().Enable(); }
         public void Disable() { Get().Disable(); }
@@ -390,9 +413,12 @@ public partial class @PlayerInputScheme: IInputActionCollection2, IDisposable
             @Block.started += instance.OnBlock;
             @Block.performed += instance.OnBlock;
             @Block.canceled += instance.OnBlock;
-            @FocusOnEnemy.started += instance.OnFocusOnEnemy;
-            @FocusOnEnemy.performed += instance.OnFocusOnEnemy;
-            @FocusOnEnemy.canceled += instance.OnFocusOnEnemy;
+            @Focus.started += instance.OnFocus;
+            @Focus.performed += instance.OnFocus;
+            @Focus.canceled += instance.OnFocus;
+            @MoveFocusPoint.started += instance.OnMoveFocusPoint;
+            @MoveFocusPoint.performed += instance.OnMoveFocusPoint;
+            @MoveFocusPoint.canceled += instance.OnMoveFocusPoint;
         }
 
         private void UnregisterCallbacks(IActionsActions instance)
@@ -406,9 +432,12 @@ public partial class @PlayerInputScheme: IInputActionCollection2, IDisposable
             @Block.started -= instance.OnBlock;
             @Block.performed -= instance.OnBlock;
             @Block.canceled -= instance.OnBlock;
-            @FocusOnEnemy.started -= instance.OnFocusOnEnemy;
-            @FocusOnEnemy.performed -= instance.OnFocusOnEnemy;
-            @FocusOnEnemy.canceled -= instance.OnFocusOnEnemy;
+            @Focus.started -= instance.OnFocus;
+            @Focus.performed -= instance.OnFocus;
+            @Focus.canceled -= instance.OnFocus;
+            @MoveFocusPoint.started -= instance.OnMoveFocusPoint;
+            @MoveFocusPoint.performed -= instance.OnMoveFocusPoint;
+            @MoveFocusPoint.canceled -= instance.OnMoveFocusPoint;
         }
 
         public void RemoveCallbacks(IActionsActions instance)
@@ -426,7 +455,7 @@ public partial class @PlayerInputScheme: IInputActionCollection2, IDisposable
         }
     }
     public ActionsActions @Actions => new ActionsActions(this);
-    public interface IPlayerMovementActions
+    public interface IControlsActions
     {
         void OnMovement(InputAction.CallbackContext context);
         void OnRotation(InputAction.CallbackContext context);
@@ -437,6 +466,7 @@ public partial class @PlayerInputScheme: IInputActionCollection2, IDisposable
         void OnAttack(InputAction.CallbackContext context);
         void OnDash(InputAction.CallbackContext context);
         void OnBlock(InputAction.CallbackContext context);
-        void OnFocusOnEnemy(InputAction.CallbackContext context);
+        void OnFocus(InputAction.CallbackContext context);
+        void OnMoveFocusPoint(InputAction.CallbackContext context);
     }
 }
