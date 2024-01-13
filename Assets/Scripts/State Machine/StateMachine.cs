@@ -1,16 +1,16 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
 public abstract class StateMachine : MonoBehaviour
 {
-    [SerializeField] private string curStateName;
+    [Header("State Machine")]
+    public string curStateName;
 
     public State curState;
 
     private void Start()
     {
         curState = GetInitialState();
+        curStateName = GetInitialState().name;
         if (curState != null) curState.OnStateEnter();
     }
 
@@ -21,11 +21,8 @@ public abstract class StateMachine : MonoBehaviour
     public void ChangeState(State newState)
     {
         curState.OnStateExit();
-
         curState = newState;
-
         curStateName = curState.name;
-
         curState.OnStateEnter();
     }
 }

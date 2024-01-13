@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 [RequireComponent(typeof(Manager))]
 public class InputManager : MonoBehaviour
@@ -14,6 +15,8 @@ public class InputManager : MonoBehaviour
     private Manager mngr;
     private PlayerInputScheme playerInputScheme;
     private PlayerController playerController;
+    private EnemyManager enemy;
+    private QualityManager quality;
 
     private void Awake()
     {
@@ -21,6 +24,8 @@ public class InputManager : MonoBehaviour
 
         mngr = GetComponent<Manager>();
         playerController = mngr.playerController;
+        enemy = GetComponent<EnemyManager>();
+        quality = GetComponent<QualityManager>();
     }
 
     public void EnableFunction()
@@ -59,6 +64,24 @@ public class InputManager : MonoBehaviour
 
             playerInputScheme.Actions.MoveFocusPoint.performed += playerInputScheme =>
             focusPointMovement = playerInputScheme.ReadValue<Vector2>().y;
+
+            playerInputScheme.Actions.NearestSpawn.started += playerInputScheme =>
+            enemy.NearestSpawn();
+            playerInputScheme.Actions.RandomSpawn.started += playerInputScheme =>
+            enemy.RandomSpawn();
+
+            playerInputScheme.Actions.Restart.started += playerInputScheme =>
+            SceneManager.LoadScene(0);
+
+            // Quality Change
+            playerInputScheme.QualityChange.LowQuality.started += playerInputScheme =>
+            quality.SetQuality(Quality.Low);
+            playerInputScheme.QualityChange.MediumQuality.started += playerInputScheme =>
+            quality.SetQuality(Quality.Medium);
+            playerInputScheme.QualityChange.HighQuality.started += playerInputScheme =>
+            quality.SetQuality(Quality.High);
+            playerInputScheme.QualityChange.UltraQuality.started += playerInputScheme =>
+            quality.SetQuality(Quality.Ultra);
         }
 
         playerInputScheme.Enable();

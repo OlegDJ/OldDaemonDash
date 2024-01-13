@@ -1,11 +1,13 @@
-using System.Linq;
 using UnityEngine;
 
 [RequireComponent(typeof(Rigidbody))]
-public class PlayerController : MonoBehaviour
+public class PlayerController : MonoBehaviour, IDamageable
 {
     #region States
-    [Header("States")] // Controls
+    [Header("States")]
+    public bool isDead;
+
+    [Space(7.5f)] // Movement
     public bool canMove = true;
     public bool canRotateBody = true;
     public bool canRun = true, isRunning;
@@ -41,7 +43,7 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private float runSpeed = 10f;
     private float moveSpeed;
     private Vector3 moveDirection, targetVelocity;
-    [SerializeField] private Vector3 checkRayOffset = new Vector3(0f, 0.1f, 0f);
+    [SerializeField] private Vector3 checkRayOffset = new(0f, 0.1f, 0f);
 
     [Space(7.5f)] // Ground Check
     [SerializeField] private float groundDrag = 5f;
@@ -54,13 +56,11 @@ public class PlayerController : MonoBehaviour
 
     #region Rotation
     [Header("Rotation")]
-    [SerializeField] private float rotationSpeed = 0.2f;
-    private Vector3 rotationDirection;
-    private Vector3 smoothedRotationDirection;
+    [SerializeField] private float rotationSpeed = 0.15f;
+    private float curBodyRot, targetBodyRot, bodyRotVel;
 
-    //private Quaternion lookRotation, targetRotation;
-
-    //private float curBodyYRotation, targetBodyYRotation, bodyYVelocity;
+    //private Vector3 rotationDirection;
+    //private Vector3 smoothedRotationDirection;
     #endregion
 
     #region Focus
@@ -72,14 +72,14 @@ public class PlayerController : MonoBehaviour
     #region Dashing
     [Header("Dashing")]
     [SerializeField] private float dashSpeed = 20f;
-    [SerializeField] private float dashDuration = 1f, dashCooldown = 5f;
-    [SerializeField] private Vector3 dashStartOffset = new Vector3(0f, 20f, 0f);
+    [SerializeField] private float dashDuration = 1f, dashCooldown = 10f;
+    [SerializeField] private Vector3 dashStartOffset = new(0f, 20f, 0f);
     private float dashCooldownTimer;
     #endregion
 
     #region Stuff
     [Header("Stuff")]
-    [SerializeField] private Vector3 popUpTextOffset = new Vector3(0f, 1.25f, 0f);
+    [SerializeField] private Vector3 popUpTextOffset = new(0f, 1.25f, 0f);
     [SerializeField] private float animationSpeed = 0.05f;
     [HideInInspector] public float movePower, desirableMovePower;
     #endregion
@@ -87,112 +87,142 @@ public class PlayerController : MonoBehaviour
     #region References
     [Header("References")]
     [SerializeField] private CameraController camControl;
+    public Transform playerBody;
     [SerializeField] private GameObject ragdollPrefab;
+    [SerializeField] private LayerMask playerLayerMask;
+    [SerializeField] private Animator anim;
+    [SerializeField] private Collider blockTrigger;
     private Transform trnsfrm;
     private Rigidbody rb;
-    private Animator anim;
+    private Collider col;
     private Manager mngr;
     [HideInInspector] public Focusable focusTarget;
+    private Transform focusPoint;
     #endregion
 
     private void Awake()
     {
         trnsfrm = transform;
+        mngr = GameObject.FindGameObjectWithTag("Manager").GetComponent<Manager>();
         rb = GetComponent<Rigidbody>();
-        anim = GetComponentInChildren<Animator>();
-        //mngr = GameObject.FindGameObjectWithTag("Manager").GetComponent<Manager>();
+        col = GetComponent<Collider>();
+        focusPoint = camControl.focusPoint;
     }
 
     private void Start()
     {
-        mngr = Manager.mngr;
-
         canMove = true;
-
         mngr.ui.SetHealthBarMaxValue(maxHealth);
         health = maxHealth;
-
         mngr.ui.SetEnergyBarMaxValue(maxEnergy);
         energy = maxEnergy;
+        mngr.ui.SetDashCooldownBarMaxValue(dashCooldown);
     }
 
     private void HandlePermits()
     {
-        canMove = canRotateBody = true;
-        canRun = energy > 0f && mngr.input.movement.magnitude > 0f;
-        canAttack = energy >= energyReduceAttack;
-        canDash = energy >= energyReduceDash && mngr.input.movement.magnitude > 0f && dashCooldownTimer <= 0f;
-        canBlock = energy >= energyReduceDodge;
-        canFocus = true;
+        if (!isDead)
+        {
+            canMove = canRotateBody = true;
+            canRun = energy > 0f && mngr.input.movement.magnitude > 0f;
+            canAttack = energy >= energyReduceAttack;
+            canDash = energy >= energyReduceDash &&
+                mngr.input.movement.magnitude > 0f && dashCooldownTimer >= dashCooldown;
+            canBlock = energy >= energyReduceDodge;
+            canFocus = true;
 
-        if (isDashing) canRun = canAttack = canBlock =
-                isRunning = isBlocking = isFocusChanging = false;
-        if (isBlocking) canDash = canRun = canAttack =
-                isDashing = isRunning = false;
-        if (isFocusChanging) canMove = canRotateBody = canRun = canAttack = canDash = canBlock =
-                isRunning = isDashing = isBlocking = isFocusing = false;
+            if (isDashing) canRun = canAttack = canBlock =
+                    isRunning = isBlocking = isFocusChanging = false;
+            if (isBlocking) canDash = canRun =
+                    isDashing = isRunning = false;
+            if (isFocusChanging) canMove = canRotateBody = canRun = canAttack = canDash = canBlock =
+                    isRunning = isDashing = isBlocking = isFocusing = false;
 
-        if (!canFocus) CancelFocusChange();
+            if (!canFocus) CancelFocusChange();
+        }
+        else
+        {
+            canMove = false;
+            canRotateBody = false;
+            canRun = false;
+            canAttack = false;
+            canDash = false;
+            canBlock = false;
+            canFocus = false;
+        }
     }
 
     public void Action(ActType actionType)
     {
+        if (isDead) return;
         switch (actionType)
         {
             case ActType.RunPerf:
                 if (!canRun) return;
                 isRunning = true;
+                camControl.SetRunning(true);
                 camControl.RunFOV();
-                return;
+                break;
             case ActType.RunCanc:
                 isRunning = false;
-                return;
+                camControl.SetRunning(false);
+                break;
             case ActType.AttackStrtd:
                 if (canAttack) Attack();
-                return;
+                break;
             case ActType.FocusChangePerf:
                 if (canFocus) PerformFocusChange();
-                return;
+                break;
             case ActType.FocusChangeCanc:
                 if (canFocus) CancelFocusChange();
-                return;
+                break;
             case ActType.DashStrtd:
-                if (canDash) Dash();
-                return;
+                if (!canDash) return;
+                Dash();
+                camControl.SetDashing(true);
+                break;
             case ActType.BlockStrtd:
                 if (!canBlock) return;
                 isBlocking = true;
+                blockTrigger.enabled = true;
                 canMove = false;
-                return;
+                break;
             case ActType.BlockCanc:
                 isBlocking = false;
+                blockTrigger.enabled = false;
                 canMove = true;
-                return;
+                break;
         }
     }
 
     private void FixedUpdate()
     {
-        GroundCheck();
-        SlopeCheck();
-        if (isFocusChanging) FocusChangeFixedUpdate();
-        if (canRotateBody && !isFocusing) NormalRotation();
-        Movement();
+        if (!isDead)
+        {
+            GroundCheck();
+            SlopeCheck();
+            if (isFocusChanging) FocusChangeFixedUpdate();
+            Movement();
+        }
     }
 
     private void Update()
     {
         HandlePermits();
         HandleHealth();
-        HandleEnergy();
-        if (canRotateBody && isFocusing) FocusRotation();
-        DashUpdate();
-        Animation();
+        if (!isDead)
+        {
+            HandleEnergy();
+            if (canRotateBody) Rotation();
+            DashUpdate();
+            Animation();
+        }
+        mngr.ui.SetDashCooldownBarValue(dashCooldownTimer);
     }
 
     private void HandleHealth()
     {
-        if (health <= 0f) Death();
+        if (health <= 0f && !isDead) Death();
         health = Mathf.Clamp(health, 0, maxHealth);
         mngr.ui.SetHealthBarValue(health);
     }
@@ -209,14 +239,18 @@ public class PlayerController : MonoBehaviour
         mngr.ui.SetEnergyBarValue(energy);
     }
 
-    public void TakeDamage(int damage, bool willDodge)
-    {
-        anim.SetTrigger("Hit");
+    public void Heal(int _heal) { health += _heal; }
 
-        if (!isBlocking || isBlocking && !willDodge)
+    public void GetAttacked(int _damage, bool _willBeDodged)
+    {
+        if (isDead) return;
+        anim.SetInteger("Hit Index", Random.Range(1, 4));
+        anim.SetTrigger("Hit");
+        camControl.SetHit();
+        if (!_willBeDodged)
         {
-            health -= damage;
-            mngr.popUpTxt.DisplayDamagePopUpText(damage, transform.position + popUpTextOffset);
+            health -= _damage;
+            mngr.popUpTxt.DisplayDamagePopUpText(_damage, transform.position + popUpTextOffset);
         }
         else
         {
@@ -227,11 +261,14 @@ public class PlayerController : MonoBehaviour
 
     private void Death()
     {
-        Instantiate(ragdollPrefab, transform.position, transform.rotation, transform.parent);
-
+        isDead = true;
+        Instantiate(ragdollPrefab, transform.position, transform.rotation, transform);
+        col.enabled = false;
+        rb.velocity = Vector3.zero;
+        rb.isKinematic = true;
         mngr.popUpTxt.DisplayDeathPopUpText(transform.position + popUpTextOffset);
-
-        Destroy(gameObject);
+        mngr.OnPlayerDeath();
+        Destroy(playerBody.gameObject);
     }
 
     private void GroundCheck()
@@ -265,8 +302,8 @@ public class PlayerController : MonoBehaviour
             }
             else moveSpeed = dashSpeed;
 
-            moveDirection = camControl.mCamTrnsfrm.right * mngr.input.smoothedMovement.x +
-                camControl.mCamTrnsfrm.forward * mngr.input.smoothedMovement.y;
+            moveDirection = camControl.camHandleTrnsfrm.right * mngr.input.smoothedMovement.x +
+                camControl.camHandleTrnsfrm.forward * mngr.input.smoothedMovement.y;
             moveDirection.y = 0f;
             moveDirection.Normalize();
 
@@ -300,43 +337,43 @@ public class PlayerController : MonoBehaviour
     {
         return Vector3.ProjectOnPlane(moveDirection, slopeHit.normal).normalized;
     }
-
-    private void NormalRotation()
+    
+    private void Rotation()
     {
-        rotationDirection = camControl.camPivotTrnsfrm.right * mngr.input.movement.x +
-            camControl.camPivotTrnsfrm.forward * mngr.input.movement.y;
-        rotationDirection.y = 0f;
-        rotationDirection.Normalize();
-
-        if (mngr.input.movement.magnitude > 0f)
+        if (isFocusing)
         {
-            smoothedRotationDirection = Vector3.Slerp(trnsfrm.forward, 
-                rotationDirection.normalized, rotationSpeed) * mngr.GetFixedDeltaTime();
-            trnsfrm.forward = smoothedRotationDirection;
-
-            //lookRotation = Quaternion.LookRotation(rotationDirection);
-            //targetRotation = Quaternion.RotateTowards(trnsfrm.rotation, lookRotation, rotationSpeed *
-            //mngr.GetDeltaTime());
-            //trnsfrm.localRotation = targetRotation;
+            Vector3 desRotDir = focusPoint.position - playerBody.position;
+            targetBodyRot = Quaternion.LookRotation(desRotDir).eulerAngles.y;
+            curBodyRot = Mathf.SmoothDampAngle(curBodyRot, targetBodyRot, ref bodyRotVel, rotationSpeed);
+            playerBody.eulerAngles = new Vector3(0f, curBodyRot, 0f);
         }
+        else if (mngr.input.movement.magnitude > 0f)
+        {
+            targetBodyRot = Mathf.Atan2(mngr.input.movement.x, mngr.input.movement.y) * Mathf.Rad2Deg;
+            targetBodyRot -= camControl.yAngleOffset;
+            curBodyRot = Mathf.SmoothDampAngle(curBodyRot, targetBodyRot, ref bodyRotVel, rotationSpeed);
+            playerBody.eulerAngles = new Vector3(0f, curBodyRot, 0f);
+        }
+
+        //rotationDirection = camControl.camPivotTrnsfrm.right * mngr.input.movement.x +
+        //    camControl.camPivotTrnsfrm.forward * mngr.input.movement.y;
+        //rotationDirection.y = 0f;
+        //rotationDirection.Normalize();
 
         //if (mngr.input.movement.magnitude > 0f)
         //{
-        //    targetBodyYRotation = Mathf.Atan2(mngr.input.movement.x, mngr.input.movement.y) * Mathf.Rad2Deg;
-        //    targetBodyYRotation -= camControl.yAngleOffset;
-        //    curBodyYRotation = Mathf.SmoothDampAngle(curBodyYRotation,
-        //        targetBodyYRotation, ref bodyYVelocity, rotationSpeed);
+        //    smoothedRotationDirection = Vector3.Lerp(playerBody.forward,
+        //        rotationDirection, rotSpeed * mngr.GetDeltaTime());
+        //    playerBody.forward = smoothedRotationDirection;
         //}
-        //trnsfrm.eulerAngles = new Vector3(0f, curBodyYRotation, 0f);
     }
 
-    private void FocusRotation()
+    private void Attack()
     {
-        trnsfrm.LookAt(new Vector3(camControl.focusPoint.position.x,
-            trnsfrm.position.y, camControl.focusPoint.position.z));
+        energy -= energyReduceAttack;
+        anim.SetInteger("Attack Index", Random.Range(1, 4));
+        anim.SetTrigger("Attack");
     }
-
-    private void Attack() { energy -= energyReduceAttack; anim.SetTrigger("Attack"); }
 
     private void TurnFocusChange(bool on)
     {
@@ -348,8 +385,8 @@ public class PlayerController : MonoBehaviour
 
     private void PerformFocusChange()
     {
-        if (isFocusing) camControl.AfterFocus();
-        else camControl.StartTransition(true);
+        if (isFocusing) camControl.StartFocusTransition();
+        else camControl.StartFChangeTransition();
         isFocusChanging = true;
         mngr.ui.TurnCrosshair(true);
         TurnFocusChange(true);
@@ -360,15 +397,13 @@ public class PlayerController : MonoBehaviour
         if (focusTarget != null && canFocus)
         {
             isFocusing = true;
-            camControl.BeforeFocus(focusTarget.focusPoints[focusTarget.startFocusPoint].position,
-                focusTarget.startFocusPoint,
-                focusTarget.focusPoints.ToList(),
-                focusTarget.focusPoints[focusTarget.startFocusPoint + 1],
-                focusTarget.focusPoints[focusTarget.startFocusPoint - 1]);
+            camControl.BeforeFocus(focusTarget.transform,
+                focusTarget.startPointIndex,
+                focusTarget.focusPoints);
         }
         else
         {
-            camControl.StartTransition(true);
+            camControl.StartFChangeTransition();
             mngr.ui.TurnCrosshair(false);
         }
         isFocusChanging = false;
@@ -377,8 +412,8 @@ public class PlayerController : MonoBehaviour
 
     private void FocusChangeFixedUpdate()
     {
-        if (Physics.Raycast(camControl.mCamTrnsfrm.position, camControl.mCamTrnsfrm.forward,
-            out focusChangeHit, focusChangeRange))
+        if (Physics.Raycast(camControl.camHandleTrnsfrm.position, camControl.camHandleTrnsfrm.forward,
+            out focusChangeHit, focusChangeRange, ~playerLayerMask))
         {
             if (!focusChangeHit.transform.GetComponent<Focusable>())
             {
@@ -397,8 +432,8 @@ public class PlayerController : MonoBehaviour
 
     private void DashUpdate()
     {
-        if (dashCooldownTimer > 0f && !isDashing) dashCooldownTimer -= Time.deltaTime;
-        else if (dashCooldownTimer < 0f) dashCooldownTimer = 0f;
+        if (dashCooldownTimer < dashCooldown && !isDashing) dashCooldownTimer += Time.deltaTime;
+        else if (dashCooldownTimer > dashCooldown) dashCooldownTimer = dashCooldown;
 
         if (isDashing)
         {
@@ -412,7 +447,7 @@ public class PlayerController : MonoBehaviour
     {
         isRunning = isBlocking = false;
 
-        dashCooldownTimer = dashCooldown;
+        dashCooldownTimer = 0f;
 
         rb.AddForce(dashStartOffset, ForceMode.VelocityChange);
 
@@ -423,7 +458,12 @@ public class PlayerController : MonoBehaviour
         Invoke(nameof(ResetDash), dashDuration);
     }
 
-    private void ResetDash() { isDashing = false; desirableDashEnergy = 0f; }
+    private void ResetDash()
+    {
+        isDashing = false;
+        camControl.SetDashing(false);
+        desirableDashEnergy = 0f;
+    }
 
     private void Animation()
     {

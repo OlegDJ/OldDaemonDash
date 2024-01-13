@@ -11,15 +11,17 @@ public class UIManager : MonoBehaviour
 
     private Color curCrosshairColor;
 
-    [SerializeField] private Slider healthBar, energyBar;
+    [SerializeField] private Slider healthBar, energyBar, dashCooldownBar;
     [SerializeField] private Image focusCrosshair;
     [SerializeField] private TextMeshProUGUI focusInfoText;
     private Manager mngr;
 
-    [SerializeField] private TextMeshProUGUI debugText;
+    [SerializeField] private TextMeshProUGUI fpsText;
     private int fps, fpsAccumulator;
     private float fpsNextPeriod = 0;
     const float fpsMeasurePeriod = 0.5f;
+
+    [SerializeField] private TextMeshProUGUI curQualityText;
 
     private void Awake()
     {
@@ -42,36 +44,45 @@ public class UIManager : MonoBehaviour
             focusInfoText.color = curCrosshairColor;
         }
 
-        // measure average frames per second
         fpsAccumulator++;
         if (Time.realtimeSinceStartup > fpsNextPeriod)
         {
             fps = (int)(fpsAccumulator / fpsMeasurePeriod);
             fpsAccumulator = 0;
             fpsNextPeriod += fpsMeasurePeriod;
-            debugText.SetText($"{fps} FPS");
+            fpsText.SetText($"{fps} FPS");
         }
     }
 
-    public void SetHealthBarMaxValue(float value)
+    public void SetHealthBarMaxValue(float _value)
     {
-        healthBar.maxValue = value;
-        healthBar.value = value;
+        healthBar.maxValue = _value;
+        healthBar.value = _value;
     }
 
-    public void SetEnergyBarMaxValue(float value)
+    public void SetEnergyBarMaxValue(float _value)
     {
-        energyBar.maxValue = value;
-        energyBar.value = value;
+        energyBar.maxValue = _value;
+        energyBar.value = _value;
     }
 
-    public void SetHealthBarValue(float value) { healthBar.value = value; }
+    public void SetDashCooldownBarMaxValue(float _value)
+    {
+        dashCooldownBar.maxValue = _value;
+        dashCooldownBar.value = 0f;
+    }
 
-    public void SetEnergyBarValue(float value) { energyBar.value = value; }
+    public void SetHealthBarValue(float _value) { healthBar.value = _value; }
 
-    public void TurnCrosshair(bool on) { desirableAlpha = on ? paleAlpha : 0f; }
+    public void SetEnergyBarValue(float _value) { energyBar.value = _value; }
 
-    public void ChangeCrosshairAlpha(bool bright) { desirableAlpha = bright ? brightAlpha : paleAlpha; }
+    public void SetDashCooldownBarValue(float _value) { dashCooldownBar.value = _value; }
 
-    public void SetFocusInfoText(string text) { focusInfoText.text = text; }
+    public void TurnCrosshair(bool _on) { desirableAlpha = _on ? paleAlpha : 0f; }
+
+    public void ChangeCrosshairAlpha(bool _bright) { desirableAlpha = _bright ? brightAlpha : paleAlpha; }
+
+    public void SetFocusInfoText(string _text) { focusInfoText.text = _text; }
+
+    public void SetCurQualityText(string _text) { curQualityText.text = _text; }
 }

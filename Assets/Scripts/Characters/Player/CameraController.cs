@@ -1,32 +1,34 @@
-using System.Collections.Generic;
 using UnityEngine;
 
 public class CameraController : MonoBehaviour
 {
-    #region Bools
-    [Header("Bools")]
+    #region States
+    [Header("States")]
     public bool canRotateCamera = true;
-    private bool isTransitioningCamera, normalTransition;
+    private bool inFChangeTransition, inFocusTransition;
     #endregion
 
     #region Rotation
     [Header("Rotation")]
     [SerializeField] private float sensivity = 6f;
-    [SerializeField] private Vector2 camClamp = new Vector2(-45f, 45f);
-    [SerializeField] private Vector3 normalStartOffset = new Vector3(0f, 0f, -2f),
-        focusStartOffset = new Vector3(0.3f, 0.2f, -1f);
-    private Vector3 normalOffset, focusOffset;
     private float xRotation, yRotation;
+    private Vector3 normalOffset = new(0f, 0f, -2f);
     [HideInInspector] public float yAngleOffset;
-    // [SerializeField] private float camSmoothTime = 0.1f;
-    // private float curXRotation, curYRotation, camXVelocity, camYVelocity;
+    #endregion
+
+    #region Camera
+    [Header("Camera")]
+    [SerializeField] private float camRadius = 0.3f;
+    [SerializeField] private Vector2 camClamp = new(-45f, 45f);
     #endregion
 
     #region Focus
     [Header("Focus")]
-    [SerializeField] private float focusPointMoveSpeed = 0.2f;
-    [SerializeField] private float transitionSpeed = 0.1f;
-    public int focusPointIndex;
+    [SerializeField] private float pointMoveSpeed = 0.2f;
+    [SerializeField] private float focusChangeTransitionSpeed = 0.1f, focusTransitionSpeed = 1.5f;
+    [SerializeField] private Vector3 focusOffset = new(0.3f, 0.1f, -1f);
+    public int pointIndex;
+    private Vector3 focusPointOffset;
     #endregion
 
     #region Field of View
@@ -39,93 +41,120 @@ public class CameraController : MonoBehaviour
     #region References
     [Header("References")]
     [SerializeField] private LayerMask obstacleLayer;
-    public Transform focusPoint;
+    public Transform camHandleTrnsfrm;
     private Manager mngr;
     [HideInInspector] public Camera mCam;
-    [HideInInspector] public Transform mCamTrnsfrm, camPivotTrnsfrm;
-    [HideInInspector] public List<Transform> focusTargetPoints = new List<Transform>();
-    public Transform nextPoint, previousPoint;
+    [HideInInspector] public Transform camPivotTrnsfrm;
+    [HideInInspector] public Transform focusPoint, focusTarget;
+    [HideInInspector] public Transform[] focusPoints;
+    [HideInInspector] public Transform nextPoint, previousPoint;
+    private Animator anim;
     #endregion
 
     private void Awake()
     {
         mCam = Camera.main;
-        mCamTrnsfrm = mCam.transform;
         camPivotTrnsfrm = transform;
+        anim = GetComponent<Animator>();
     }
 
     private void Start()
     {
-        mngr = Manager.mngr;
-
-        normalOffset = normalStartOffset;
-        focusOffset = focusStartOffset;
-
+        mngr = FindObjectOfType<Manager>();
+        normalOffset = camHandleTrnsfrm.localPosition;
         desirableFOV = normalFOV;
     }
 
     private void Update()
     {
         ControlFOV();
-        if (isTransitioningCamera) TransitionCamera();
-        if (canRotateCamera) mCamTrnsfrm.localPosition =
-            (mngr.playerController.isFocusChanging || mngr.playerController.isFocusing) ? 
-            focusOffset : normalOffset;
+        if (inFChangeTransition) FChangeTransitionCamera();
+        else if (inFocusTransition) FocusTransitionCamera();
         if (canRotateCamera) Rotation();
     }
 
-    public void StartTransition(bool normal)
+    public void StartFChangeTransition()
     {
-        isTransitioningCamera = true;
+        inFChangeTransition = true;
         canRotateCamera = false;
-        normalTransition = normal;
-        //if (!normal)
-        //{
-        //    mCamTrnsfrm.localRotation = Quaternion.identity;
-        //    desXRot = mngr.player.transform.rotation.eulerAngles.x;
-        //    desYRot = mngr.player.transform.rotation.eulerAngles.y;
-        //}
     }
 
-    private void TransitionCamera()
+    private void FChangeTransitionCamera()
     {
-        if (normalTransition)
+        if (camHandleTrnsfrm.localPosition == (mngr.playerController.isFocusChanging ? focusOffset : normalOffset))
         {
-            if (mCamTrnsfrm.localPosition == (mngr.playerController.isFocusChanging ?
-                focusOffset : normalOffset))
+            inFChangeTransition = false;
+            canRotateCamera = true;
+        }
+        else
+        {
+            if (mngr.playerController.isFocusChanging)
             {
-                canRotateCamera = true;
-                isTransitioningCamera = false;
+                camHandleTrnsfrm.localPosition = Vector3.MoveTowards(camHandleTrnsfrm.localPosition,
+                    focusOffset, focusChangeTransitionSpeed * mngr.GetUnscaledDeltaTime());
             }
             else
             {
-                if (mngr.playerController.isFocusChanging)
-                {
-                    mCamTrnsfrm.localPosition = Vector3.MoveTowards(mCamTrnsfrm.localPosition,
-                        focusOffset, transitionSpeed * mngr.GetUnscaledDeltaTime());
-                }
-                else
-                {
-                    mCamTrnsfrm.localPosition = Vector3.MoveTowards(mCamTrnsfrm.localPosition,
-                        normalOffset, transitionSpeed * mngr.GetUnscaledDeltaTime());
-                }
+                camHandleTrnsfrm.localPosition = Vector3.MoveTowards(camHandleTrnsfrm.localPosition,
+                    normalOffset, focusChangeTransitionSpeed * mngr.GetUnscaledDeltaTime());
             }
         }
-        //else
-        //{
-        //    if (mCamTrnsfrm.rotation == Quaternion.identity && xRotation == desXRot && yRotation == desYRot)
-        //    {
-        //        canRotateCamera = true;
-        //        isTransitioningCamera = false;
-        //        mngr.playerController.isFocusChanging = mngr.playerController.isFocusing = false;
-        //    }
-        //    else
-        //    {
-        //        xRotation = Mathf.MoveTowards(xRotation, 0f, transitionSpeed);
-        //        yRotation = Mathf.MoveTowards(yRotation, 0f, transitionSpeed);
-        //        camPivotTrnsfrm.localEulerAngles = new Vector3(xRotation, yRotation, 0f);
-        //    }
-        //}
+    }
+
+    public void StartFocusTransition()
+    {
+        inFocusTransition = true;
+        canRotateCamera = false;
+    }
+
+    private void FocusTransitionCamera()
+    {
+        Quaternion desPivotRot, desCamRot;
+        if (mngr.playerController.isFocusing)
+        {
+            desPivotRot = Quaternion.LookRotation(focusPoint.position - camPivotTrnsfrm.position);
+            desCamRot = camHandleTrnsfrm.localRotation;
+        }
+        else
+        {
+            desPivotRot = mngr.playerController.playerBody.localRotation;
+            desCamRot = Quaternion.identity;
+        }
+
+        if (camPivotTrnsfrm.localRotation == desPivotRot && camHandleTrnsfrm.localRotation == desCamRot)
+        {
+            inFocusTransition = false;
+            canRotateCamera = true;
+
+            if (!mngr.playerController.isFocusing)
+            {
+                yRotation = camPivotTrnsfrm.eulerAngles.y;
+                xRotation = camPivotTrnsfrm.eulerAngles.x;
+            }
+        }
+        else
+        {
+            camPivotTrnsfrm.localRotation = Quaternion.RotateTowards(camPivotTrnsfrm.localRotation,
+                desPivotRot, focusTransitionSpeed * mngr.GetUnscaledDeltaTime());
+            if (!mngr.playerController.isFocusing)
+            {
+                camHandleTrnsfrm.localRotation = Quaternion.RotateTowards(camHandleTrnsfrm.localRotation,
+                    desCamRot, focusTransitionSpeed * mngr.GetUnscaledDeltaTime());
+            }
+        }
+    }
+
+    public void BeforeFocus(Transform _focusTarget, int _index,
+        Transform[] _points)
+    {
+        focusTarget = _focusTarget;
+        pointIndex = _index;
+        focusPoints = _points;
+        nextPoint = focusPoints[pointIndex + 1] != null ? focusPoints[pointIndex + 1] : focusPoints[pointIndex];
+        previousPoint = focusPoints[pointIndex - 1] != null ? focusPoints[pointIndex - 1] : focusPoints[pointIndex];
+        focusPoint.position = focusPoints[pointIndex].position;
+        xRotation = yRotation = 0f;
+        StartFocusTransition();
     }
 
     private void Rotation()
@@ -141,75 +170,39 @@ public class CameraController : MonoBehaviour
             yAngleOffset = Mathf.Atan2(camPivotTrnsfrm.forward.z, camPivotTrnsfrm.forward.x) *
                 Mathf.Rad2Deg - 90f;
 
-            //curXRotation = Mathf.SmoothDampAngle(curXRotation, xRotation, ref camXVelocity, camSmoothTime);
-            //curYRotation = Mathf.SmoothDampAngle(curYRotation, yRotation, ref camYVelocity, camSmoothTime);
-            //camPivotTrnsfrm.eulerAngles = new Vector3(curXRotation, curYRotation, 0f);
-            //xRotation = camPivotTrnsfrm.eulerAngles.x;
-            //yRotation = camPivotTrnsfrm.eulerAngles.y;
-
-            if (mngr.playerController.isFocusChanging)
-            {
-                Ray camRay = new Ray(camPivotTrnsfrm.position, -camPivotTrnsfrm.forward);
-                float maxDistance = Mathf.Abs(focusStartOffset.z);
-                if (Physics.SphereCast(camRay, 0.25f, out RaycastHit hit,
-                    Mathf.Abs(focusStartOffset.z), obstacleLayer))
-                    maxDistance = (hit.point - camPivotTrnsfrm.position).magnitude - 0.25f;
-                focusOffset.z = -maxDistance;
-            }
-            else
-            {
-                Ray camRay = new Ray(camPivotTrnsfrm.position, -camPivotTrnsfrm.forward);
-                float maxDistance = Mathf.Abs(normalStartOffset.z);
-                if (Physics.SphereCast(camRay, 0.25f, out RaycastHit hit,
-                    Mathf.Abs(normalStartOffset.z), obstacleLayer))
-                    maxDistance = (hit.point - camPivotTrnsfrm.position).magnitude - 0.25f;
-                normalOffset.z = -maxDistance;
-            }
+            Ray camRay = new(camPivotTrnsfrm.position, -camPivotTrnsfrm.forward);
+            float maxDistance = Mathf.Abs(mngr.playerController.isFocusChanging ?
+                focusOffset.z : normalOffset.z);
+            if (Physics.SphereCast(camRay, 0.25f, out RaycastHit hit, maxDistance, obstacleLayer))
+                maxDistance = (hit.point - camPivotTrnsfrm.position).magnitude - camRadius;
+            camHandleTrnsfrm.localPosition = new(camHandleTrnsfrm.localPosition.x,
+                camHandleTrnsfrm.localPosition.y, -maxDistance);
         }
         else
         {
             float pointMove = mngr.input.focusPointMovement;
-            if (pointMove > 0f)
-                focusPoint.position = Vector3.MoveTowards(focusPoint.position, nextPoint.position,
-                    focusPointMoveSpeed * mngr.GetUnscaledDeltaTime());
-            else if (pointMove < 0f)
-                focusPoint.position = Vector3.MoveTowards(focusPoint.position, previousPoint.position,
-                    focusPointMoveSpeed * mngr.GetUnscaledDeltaTime());
-
-            if (focusPoint.position == nextPoint.position &&
-                focusTargetPoints[focusTargetPoints.Count - 1].position != focusPoint.position)
+            if (pointMove != 0f)
+                focusPointOffset = Vector3.MoveTowards(focusPointOffset,
+                    pointMove > 0f ? nextPoint.localPosition : previousPoint.localPosition,
+                    pointMoveSpeed * mngr.GetUnscaledDeltaTime());
+            if (focusPointOffset == nextPoint.localPosition &&
+                focusPoints[^1].localPosition != focusPointOffset)
             {
-                previousPoint = focusTargetPoints[focusPointIndex];
-                nextPoint = focusTargetPoints[focusPointIndex + 1];
-                focusPointIndex++;
+                previousPoint = focusPoints[pointIndex];
+                nextPoint = focusPoints[pointIndex + 1];
+                pointIndex++;
             }
-            if (focusPoint.position == previousPoint.position &&
-                focusTargetPoints[0].position != focusPoint.position)
+            if (focusPointOffset == previousPoint.localPosition &&
+                focusPoints[0].localPosition != focusPointOffset)
             {
-                nextPoint = focusTargetPoints[focusPointIndex];
-                previousPoint = focusTargetPoints[focusPointIndex - 1];
-                focusPointIndex--;
+                nextPoint = focusPoints[pointIndex];
+                previousPoint = focusPoints[pointIndex - 1];
+                pointIndex--;
             }
+            focusPoint.position = focusPointOffset + focusTarget.position;
             camPivotTrnsfrm.LookAt(focusPoint);
-            mCamTrnsfrm.LookAt(focusPoint);
+            camHandleTrnsfrm.LookAt(focusPoint);
         }
-    }
-
-    public void BeforeFocus(Vector3 startPos, int index,
-        List<Transform> points, Transform next, Transform prev)
-    {
-        focusPoint.position = startPos;
-        focusPointIndex = index;
-        nextPoint = next;
-        previousPoint = prev;
-        focusTargetPoints = points;
-    }
-
-    public void AfterFocus()
-    {
-        mCamTrnsfrm.localRotation = Quaternion.identity;
-        xRotation = camPivotTrnsfrm.eulerAngles.x;
-        yRotation = camPivotTrnsfrm.eulerAngles.y;
     }
 
     private void ControlFOV()
@@ -224,4 +217,10 @@ public class CameraController : MonoBehaviour
     public void RunFOV() { desirableFOV = runFOV; }
 
     public void DashFOV() { desirableFOV = dashFOV; }
+
+    public void SetRunning(bool _val) { anim.SetBool("Is Running", _val); }
+
+    public void SetDashing(bool _val) { anim.SetBool("Is Dashing", _val); }
+
+    public void SetHit() { anim.SetTrigger("Hit"); }
 }

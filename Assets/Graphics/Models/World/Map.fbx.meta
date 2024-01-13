@@ -7,13 +7,13 @@ ModelImporter:
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
-      name: Lamp
-    second: {fileID: 2100000, guid: b478eca08cf212241a13534da8f0860d, type: 2}
+      name: Floor
+    second: {fileID: 2100000, guid: 430e41d3da9252e4dbfd3de19814b51d, type: 2}
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
-      name: White
-    second: {fileID: 2100000, guid: 0450000a149044744b3cdecffa8b61de, type: 2}
+      name: Walls
+    second: {fileID: 2100000, guid: 3c00feae56bbbe246a4bf4a3bc47fbae, type: 2}
   materials:
     materialImportMode: 2
     materialName: 0

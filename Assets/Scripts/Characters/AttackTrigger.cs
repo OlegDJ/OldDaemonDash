@@ -3,28 +3,18 @@ using Random = UnityEngine.Random;
 
 public class AttackTrigger : MonoBehaviour
 {
-    [SerializeField, Tooltip("1 - player, 2 - enemy.")] private byte characterType;
-    [SerializeField] private Transform leadBodyPart;
     [SerializeField] private int minDamage, maxDamage;
     [SerializeField] private bool canBeDodged;
-
-    private void FixedUpdate()
-    {
-        transform.position = leadBodyPart.position;
-        transform.rotation = leadBodyPart.rotation;
-    }
+    private bool willBeDodged;
 
     private void OnTriggerEnter(Collider other)
     {
-        if (other.CompareTag("Enemy") && characterType == 1)
+        if (other.CompareTag("Block Trigger")) willBeDodged = canBeDodged;
+
+        if (other.TryGetComponent<IDamageable>(out var controller))
         {
-            EnemyController enemyController = other.GetComponent<EnemyController>();
-            if (enemyController != null) enemyController.TakeDamage(Random.Range(minDamage, maxDamage), canBeDodged);
-        }
-        else if (other.CompareTag("Player") && characterType == 2)
-        {
-            PlayerController playerController = other.GetComponent<PlayerController>();
-            if (playerController != null) playerController.TakeDamage(Random.Range(minDamage, maxDamage), canBeDodged);
+            controller.GetAttacked(Random.Range(minDamage, maxDamage), willBeDodged);
+            willBeDodged = false;
         }
     }
 }
